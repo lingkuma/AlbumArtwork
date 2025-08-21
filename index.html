@@ -742,12 +742,11 @@
                         const promises = batch.map(async (release) => {
                             try {
                                 const coverUrl = await this.getCoverArt(release.id);
-                                if (coverUrl) {
-                                    this.albums.push(coverUrl);
-                                    this.albumUrls[coverUrl] = `https://musicbrainz.org/release/${release.id}`;
-                                    loadedCount++;
-                                }
-                                return coverUrl ? 1 : 0;
+                                // 直接添加到列表，不检查是否为空
+                                this.albums.push(coverUrl);
+                                this.albumUrls[coverUrl] = `https://musicbrainz.org/release/${release.id}`;
+                                loadedCount++;
+                                return 1;
                             } catch (error) {
                                 console.warn(`无法加载缓存的专辑封面: ${release.title || release.id}`, error);
                                 return 0;
@@ -767,9 +766,7 @@
                         );
                     }
                     
-                    if (this.albums.length === 0) {
-                        throw new Error('无法从缓存加载专辑封面');
-                    }
+                    // 不再检查专辑数量是否为零，因为我们现在总是添加封面到列表中
                     
                     console.log(`✅ 从缓存成功加载 ${this.albums.length} 张专辑封面`);
                     
@@ -889,12 +886,11 @@
                         const promises = batch.map(async (release) => {
                             try {
                                 const coverUrl = await this.getCoverArt(release.id);
-                                if (coverUrl) {
-                                    this.albums.push(coverUrl);
-                                    this.albumUrls[coverUrl] = `https://musicbrainz.org/release/${release.id}`;
-                                    loadedCount++;
-                                }
-                                return coverUrl ? 1 : 0;
+                                // 直接添加到列表，不检查是否为空
+                                this.albums.push(coverUrl);
+                                this.albumUrls[coverUrl] = `https://musicbrainz.org/release/${release.id}`;
+                                loadedCount++;
+                                return 1;
                             } catch (error) {
                                 console.warn(`无法加载专辑封面: ${release.title || release.id}`, error);
                                 return 0;
@@ -914,9 +910,7 @@
                         );
                     }
 
-                    if (this.albums.length === 0) {
-                        throw new Error(this.texts.errorNetwork);
-                    }
+                    // 不再检查专辑数量是否为零，因为我们现在总是添加封面到列表中
 
                     console.log(`✅ 成功加载 ${this.albums.length} 张专辑封面`);
                     this.saveCoverCache(); // 保存缓存
@@ -967,30 +961,17 @@
                     return cached.url;
                 }
 
-                try {
-                    // 从 Cover Art Archive 获取封面
-                    const url = `https://coverartarchive.org/release/${releaseId}/front-500`;
-
-                    // 使用完整请求而不是HEAD请求，以便获取最终URL（重定向后的URL）
-                    console.log(`获取封面最终URL: ${releaseId}`);
-                    const response = await fetch(url);
-                    if (response.ok) {
-                        // 获取最终URL（重定向后的URL）
-                        const finalUrl = response.url;
-                        console.log(`获取到最终URL: ${finalUrl}`);
-                        
-                        // 缓存最终URL
-                        this.coverCache.set(cacheKey, {
-                            url: finalUrl, // 存储最终URL而不是初始URL
-                            timestamp: Date.now() // 保留时间戳用于记录，但不再用于过期判断
-                        });
-                        return finalUrl;
-                    }
-                } catch (error) {
-                    console.warn(`获取封面失败 ${releaseId}:`, error);
-                }
-
-                return null;
+                // 从 Cover Art Archive 获取封面 URL (不进行检测)
+                const url = `https://coverartarchive.org/release/${releaseId}/front-500`;
+                
+                // 直接将 URL 保存到缓存中，不检测是否可用
+                console.log(`添加封面到缓存: ${releaseId}`);
+                this.coverCache.set(cacheKey, {
+                    url: url,
+                    timestamp: Date.now()
+                });
+                
+                return url;
             }
 
             async loadAlbumsFromBackup() {
