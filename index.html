@@ -735,26 +735,36 @@
                     let loadedCount = 0;
                     const totalCount = this.albumsCache.length;
                     
-                    for (const release of this.albumsCache) {
-                        try {
-                            const coverUrl = await this.getCoverArt(release.id);
-                            if (coverUrl) {
-                                this.albums.push(coverUrl);
-                                this.albumUrls[coverUrl] = `https://musicbrainz.org/release/${release.id}`;
-                                loadedCount++;
-                                
-                                // 更新加载进度
-                                this.updateLoadingMessage(
-                                    this.texts.loadingCovers,
-                                    this.formatText('loadingProgress', {
-                                        current: loadedCount,
-                                        total: totalCount
-                                    })
-                                );
+                    // 并发加载封面，每批次20个
+                    const batchSize = 20;
+                    for (let i = 0; i < totalCount; i += batchSize) {
+                        const batch = this.albumsCache.slice(i, i + batchSize);
+                        const promises = batch.map(async (release) => {
+                            try {
+                                const coverUrl = await this.getCoverArt(release.id);
+                                if (coverUrl) {
+                                    this.albums.push(coverUrl);
+                                    this.albumUrls[coverUrl] = `https://musicbrainz.org/release/${release.id}`;
+                                    loadedCount++;
+                                }
+                                return coverUrl ? 1 : 0;
+                            } catch (error) {
+                                console.warn(`无法加载缓存的专辑封面: ${release.title || release.id}`, error);
+                                return 0;
                             }
-                        } catch (error) {
-                            console.warn(`无法加载缓存的专辑封面: ${release.title || release.id}`, error);
-                        }
+                        });
+                        
+                        // 等待当前批次完成
+                        await Promise.all(promises);
+                        
+                        // 更新加载进度
+                        this.updateLoadingMessage(
+                            this.texts.loadingCovers,
+                            this.formatText('loadingProgress', {
+                                current: loadedCount,
+                                total: totalCount
+                            })
+                        );
                     }
                     
                     if (this.albums.length === 0) {
@@ -868,28 +878,40 @@
                     console.log(`合并后共获取到 ${allReleases.length} 个不重复专辑`);
                     this.updateLoadingMessage(this.texts.loadingCovers);
 
-                    // 获取每个专辑的封面
+                    // 获取每个专辑的封面 - 使用并发请求
                     let loadedCount = 0;
-                    for (const release of allReleases) {
-                        try {
-                            const coverUrl = await this.getCoverArt(release.id);
-                            if (coverUrl) {
-                                this.albums.push(coverUrl);
-                                this.albumUrls[coverUrl] = `https://musicbrainz.org/release/${release.id}`;
-                                loadedCount++;
-
-                                // 更新加载进度
-                                this.updateLoadingMessage(
-                                    this.texts.loadingCovers,
-                                    this.formatText('loadingProgress', {
-                                        current: loadedCount,
-                                        total: allReleases.length
-                                    })
-                                );
+                    const totalCount = allReleases.length;
+                    
+                    // 并发加载封面，每批次15个
+                    const batchSize = 15;
+                    for (let i = 0; i < totalCount; i += batchSize) {
+                        const batch = allReleases.slice(i, i + batchSize);
+                        const promises = batch.map(async (release) => {
+                            try {
+                                const coverUrl = await this.getCoverArt(release.id);
+                                if (coverUrl) {
+                                    this.albums.push(coverUrl);
+                                    this.albumUrls[coverUrl] = `https://musicbrainz.org/release/${release.id}`;
+                                    loadedCount++;
+                                }
+                                return coverUrl ? 1 : 0;
+                            } catch (error) {
+                                console.warn(`无法加载专辑封面: ${release.title || release.id}`, error);
+                                return 0;
                             }
-                        } catch (error) {
-                            console.warn(`无法加载专辑封面: ${release.title}`, error);
-                        }
+                        });
+                        
+                        // 等待当前批次完成
+                        await Promise.all(promises);
+                        
+                        // 更新加载进度
+                        this.updateLoadingMessage(
+                            this.texts.loadingCovers,
+                            this.formatText('loadingProgress', {
+                                current: loadedCount,
+                                total: totalCount
+                            })
+                        );
                     }
 
                     if (this.albums.length === 0) {
@@ -949,15 +971,20 @@
                     // 从 Cover Art Archive 获取封面
                     const url = `https://coverartarchive.org/release/${releaseId}/front-500`;
 
-                    // 先检查封面是否存在
-                    const response = await fetch(url, { method: 'HEAD' });
+                    // 使用完整请求而不是HEAD请求，以便获取最终URL（重定向后的URL）
+                    console.log(`获取封面最终URL: ${releaseId}`);
+                    const response = await fetch(url);
                     if (response.ok) {
-                        // 缓存封面URL（不再设置过期时间）
+                        // 获取最终URL（重定向后的URL）
+                        const finalUrl = response.url;
+                        console.log(`获取到最终URL: ${finalUrl}`);
+                        
+                        // 缓存最终URL
                         this.coverCache.set(cacheKey, {
-                            url: url,
+                            url: finalUrl, // 存储最终URL而不是初始URL
                             timestamp: Date.now() // 保留时间戳用于记录，但不再用于过期判断
                         });
-                        return url;
+                        return finalUrl;
                     }
                 } catch (error) {
                     console.warn(`获取封面失败 ${releaseId}:`, error);
