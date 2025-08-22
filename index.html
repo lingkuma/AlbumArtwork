@@ -931,7 +931,7 @@
             // 获取 MusicBrainz 收藏栏中的专辑列表
             async fetchCollectionReleases(collectionId) {
                 // 使用 CORS 代理来访问 MusicBrainz API
-                const proxyUrl = 'https://api.allorigins.win/get?url=';
+                const proxyUrl = 'https://corsproxy.io/?';
                 const targetUrl = `https://musicbrainz.org/ws/2/release?collection=${collectionId}&limit=100&fmt=json`;
                 const url = proxyUrl + encodeURIComponent(targetUrl);
 
@@ -942,8 +942,8 @@
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
 
-                    const proxyData = await response.json();
-                    const data = JSON.parse(proxyData.contents);
+                    // corsproxy.io 直接返回原始内容，不需要解析 .contents
+                    const data = await response.json();
                     return data.releases || [];
                 } catch (error) {
                     console.error(`获取收藏栏 ${collectionId} 失败:`, error);
