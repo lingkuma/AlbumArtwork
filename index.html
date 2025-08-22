@@ -592,8 +592,16 @@
                     // await this.loadConfig();
                     await this.loadCoverCache();
                     
-                    // 检查是否有缓存的专辑列表
-                    if (this.albumsCache.length > 0) {
+                    // 检查是否是本地模式
+                    const isLocalMode = window.location.search.includes('local=true');
+                    
+                    if (isLocalMode) {
+                        // 本地模式：直接扫描本地目录
+                        console.log('使用本地模式，扫描本地图片目录');
+                        this.updateLoadingMessage('使用本地模式，扫描本地图片...');
+                        await this.loadAlbumsFromBackup();
+                    } else if (this.albumsCache.length > 0) {
+                        // 有缓存：使用缓存
                         console.log('使用缓存的专辑列表');
                         this.updateLoadingMessage(this.texts.loadingCovers);
                         
@@ -603,7 +611,7 @@
                         // 在后台获取最新的专辑列表并比对
                         this.checkForAlbumsUpdate();
                     } else {
-                        // 如果没有缓存，直接获取专辑列表
+                        // 无缓存且非本地模式：获取MusicBrainz数据
                         console.log('没有缓存的专辑列表，从 MusicBrainz 获取');
                         // 最多尝试3次
                         let retryCount = 0;
@@ -624,17 +632,11 @@
                                 }
                             }
                         }
-                        
-                        // 只有在用户明确要求使用本地模式时才使用
-                        if (!success && window.location.search.includes('local=true')) {
-                            console.warn('多次尝试获取 MusicBrainz 数据失败，用户已指定使用本地模式');
-                            await this.loadAlbumsFromBackup();
-                        }
                     }
 
-                    // 只有在用户明确要求使用本地模式且专辑列表为空时才使用本地模式
-                    if (this.albums.length === 0 && window.location.search.includes('local=true')) {
-                        console.warn('专辑列表为空，用户已指定使用本地模式');
+                    // 如果专辑列表仍为空，尝试使用本地备份
+                    if (this.albums.length === 0) {
+                        console.warn('专辑列表为空，尝试使用本地备份');
                         await this.loadAlbumsFromBackup();
                     }
 
@@ -1072,6 +1074,10 @@
                 this.updateLoadingMessage(this.texts.loadingBackup);
 
                 try {
+                    // 清空现有专辑列表，确保使用本地图片
+                    this.albums = [];
+                    this.albumUrls = {};
+                    
                     // 获取当前页面的基础URL
                     const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/');
                     const coverDirUrl = `${baseUrl}cover/`;
@@ -1081,32 +1087,18 @@
                     this.updateLoadingMessage(this.texts.scanningDirectory);
                     
                     try {
+                        // 扫描目录 - 新的scanCoverDirectory函数会直接添加所有已知图片
                         await this.scanCoverDirectory(coverDirUrl);
                     } catch (scanError) {
-                        console.warn('扫描目录失败，尝试手动添加本地图片:', scanError);
+                        console.warn('扫描目录失败:', scanError);
                         
-                        // 如果扫描失败，手动添加cover目录下的图片
-                        const imageFiles = [
-                            '1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg', '7.jpg', '8.jpg',
-                            '10000x10000bb-100.jpg', '10000x10000bb-1001.jpg', '10000x10000bb-1010.jpg',
-                            '10000x110000bb-100.jpg', '5000x5000bb.png', '5000x5000bb1.webp'
-                        ];
-                        
-                        for (const file of imageFiles) {
-                            const imageUrl = `${coverDirUrl}${file}`;
-                            this.albums.push(imageUrl);
-                            this.albumUrls[imageUrl] = this.generateAlbumUrl(file);
+                        // 如果扫描完全失败，添加一个默认图片
+                        if (this.albums.length === 0) {
+                            const defaultImage = `${coverDirUrl}1.jpg`;
+                            this.albums.push(defaultImage);
+                            this.albumUrls[defaultImage] = this.generateAlbumUrl('1.jpg');
+                            console.warn('扫描失败，添加默认图片');
                         }
-                        
-                        console.log(`手动添加了 ${imageFiles.length} 个图片文件`);
-                    }
-
-                    if (this.albums.length === 0) {
-                        // 如果仍然没有图片，添加至少一个默认图片路径
-                        const defaultImage = `${coverDirUrl}1.jpg`;
-                        this.albums.push(defaultImage);
-                        this.albumUrls[defaultImage] = this.generateAlbumUrl('1.jpg');
-                        console.warn('没有找到封面图片，添加了默认图片');
                     }
 
                     console.log(`✅ 本地专辑列表加载完成，共 ${this.albums.length} 张专辑封面`);
@@ -1122,74 +1114,109 @@
                 }
             }
             
-            // 新增：扫描 cover 目录下的所有图片文件
+            // 扫描 cover 目录下的所有图片文件
             async scanCoverDirectory(coverDirUrl) {
                 try {
-                    // 创建一个隐藏的 iframe 来获取目录列表
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    document.body.appendChild(iframe);
+                    console.log('开始扫描本地目录:', coverDirUrl);
                     
-                    // 加载 cover 目录
-                    return new Promise((resolve, reject) => {
-                        iframe.onload = () => {
-                            try {
-                                // 尝试从 iframe 中获取目录内容
-                                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                                
-                                // 查找所有链接，这些链接可能是文件
-                                const links = iframeDoc.querySelectorAll('a');
-                                const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
-                                let foundImages = 0;
-                                
-                                // 遍历所有链接，寻找图片文件
-                                for (const link of links) {
-                                    const href = link.getAttribute('href');
+                    // 首先尝试直接列出所有已知的图片文件
+                    const knownFiles = [
+                        '1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg', '7.jpg', '8.jpg'
+                    ];
+                    
+                    let foundImages = 0;
+                    
+                    // 先添加所有已知的图片文件
+                    for (const filename of knownFiles) {
+                        const imageUrl = `${coverDirUrl}${filename}`;
+                        this.albums.push(imageUrl);
+                        this.albumUrls[imageUrl] = this.generateAlbumUrl(filename);
+                        foundImages++;
+                    }
+                    
+                    console.log(`已添加 ${foundImages} 个已知图片文件`);
+                    
+                    // 然后尝试使用iframe扫描目录
+                    try {
+                        // 创建一个隐藏的 iframe 来获取目录列表
+                        const iframe = document.createElement('iframe');
+                        iframe.style.display = 'none';
+                        document.body.appendChild(iframe);
+                        
+                        await new Promise((resolve, reject) => {
+                            iframe.onload = () => {
+                                try {
+                                    // 尝试从 iframe 中获取目录内容
+                                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
                                     
-                                    // 检查是否是图片文件
-                                    if (href && imageExtensions.some(ext => href.toLowerCase().endsWith(ext))) {
-                                        const filename = href;
-                                        const imageUrl = `${coverDirUrl}${filename}`;
+                                    // 查找所有链接，这些链接可能是文件
+                                    const links = iframeDoc.querySelectorAll('a');
+                                    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+                                    let iframeFounds = 0;
+                                    
+                                    // 遍历所有链接，寻找图片文件
+                                    for (const link of links) {
+                                        const href = link.getAttribute('href');
                                         
-                                        // 添加到专辑列表
-                                        this.albums.push(imageUrl);
-                                        this.albumUrls[imageUrl] = this.generateAlbumUrl(filename);
-                                        foundImages++;
+                                        // 检查是否是图片文件且不在已知文件列表中
+                                        if (href && imageExtensions.some(ext => href.toLowerCase().endsWith(ext)) && 
+                                            !knownFiles.includes(href)) {
+                                            const filename = href;
+                                            const imageUrl = `${coverDirUrl}${filename}`;
+                                            
+                                            // 添加到专辑列表
+                                            this.albums.push(imageUrl);
+                                            this.albumUrls[imageUrl] = this.generateAlbumUrl(filename);
+                                            iframeFounds++;
+                                            foundImages++;
+                                        }
                                     }
-                                }
-                                
-                                console.log(`自动扫描找到 ${foundImages} 个图片文件`);
-                                
-                                // 清理 iframe
-                                document.body.removeChild(iframe);
-                                
-                                if (foundImages > 0) {
+                                    
+                                    console.log(`iframe扫描额外找到 ${iframeFounds} 个图片文件`);
+                                    
+                                    // 清理 iframe
+                                    document.body.removeChild(iframe);
                                     resolve();
-                                } else {
-                                    reject(new Error('目录中没有找到图片文件'));
+                                } catch (error) {
+                                    if (document.body.contains(iframe)) {
+                                        document.body.removeChild(iframe);
+                                    }
+                                    console.warn('iframe扫描失败:', error);
+                                    resolve(); // 即使失败也继续，因为我们已经有了已知文件
                                 }
-                            } catch (error) {
-                                document.body.removeChild(iframe);
-                                reject(error);
-                            }
-                        };
-                        
-                        iframe.onerror = () => {
-                            document.body.removeChild(iframe);
-                            reject(new Error('无法加载目录'));
-                        };
-                        
-                        // 设置 iframe 的 src
-                        iframe.src = coverDirUrl;
-                        
-                        // 如果 5 秒后仍未加载完成，则超时
-                        setTimeout(() => {
-                            if (document.body.contains(iframe)) {
-                                document.body.removeChild(iframe);
-                                reject(new Error('目录加载超时'));
-                            }
-                        }, 5000);
-                    });
+                            };
+                            
+                            iframe.onerror = () => {
+                                if (document.body.contains(iframe)) {
+                                    document.body.removeChild(iframe);
+                                }
+                                console.warn('iframe加载失败');
+                                resolve(); // 即使失败也继续，因为我们已经有了已知文件
+                            };
+                            
+                            // 设置 iframe 的 src
+                            iframe.src = coverDirUrl;
+                            
+                            // 如果 3 秒后仍未加载完成，则超时但不报错
+                            setTimeout(() => {
+                                if (document.body.contains(iframe)) {
+                                    document.body.removeChild(iframe);
+                                    console.warn('iframe加载超时');
+                                    resolve(); // 即使超时也继续，因为我们已经有了已知文件
+                                }
+                            }, 3000);
+                        });
+                    } catch (iframeError) {
+                        console.warn('iframe扫描出错，但继续使用已知文件:', iframeError);
+                    }
+                    
+                    console.log(`本地目录扫描完成，总共找到 ${foundImages} 个图片文件`);
+                    
+                    if (foundImages > 0) {
+                        return;
+                    } else {
+                        throw new Error('未找到任何图片文件');
+                    }
                 } catch (error) {
                     console.error('扫描目录失败:', error);
                     throw error;
@@ -1381,8 +1408,9 @@
                 // 检查专辑数组是否为空
                 if (this.albums.length === 0) {
                     // 如果专辑数组为空，返回本地cover目录下的默认图片路径
-                    console.warn('专辑列表为空，使用本地cover目录下的默认图片');
-                    return './cover/1.jpg'; // 使用cover目录下的第一张图片作为默认图片
+                    const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/');
+                    const defaultImage = `${baseUrl}cover/1.jpg`;
+                    return defaultImage;
                 }
                 
                 if (this.isInitializing) {
@@ -1398,8 +1426,9 @@
                 // 检查专辑数组是否为空
                 if (this.albums.length === 0) {
                     // 如果专辑数组为空，返回本地cover目录下的默认图片路径
-                    console.warn('专辑列表为空，使用本地cover目录下的默认图片');
-                    return './cover/1.jpg'; // 使用cover目录下的第一张图片作为默认图片
+                    const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/');
+                    const defaultImage = `${baseUrl}cover/1.jpg`;
+                    return defaultImage;
                 }
                 
                 // 如果还有未使用的专辑，优先选择
