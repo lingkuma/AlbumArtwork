@@ -605,7 +605,19 @@
                     } else {
                         // 如果没有缓存，直接获取专辑列表
                         console.log('没有缓存的专辑列表，从 MusicBrainz 获取');
-                        await this.loadAlbumsFromMusicBrainz();
+                        try {
+                            await this.loadAlbumsFromMusicBrainz();
+                        } catch (error) {
+                            console.warn('从 MusicBrainz 获取专辑失败，尝试使用本地模式', error);
+                            // 如果从 MusicBrainz 获取失败，尝试使用本地模式
+                            await this.loadAlbumsFromBackup();
+                        }
+                    }
+
+                    // 如果专辑列表仍然为空，强制使用本地模式
+                    if (this.albums.length === 0) {
+                        console.warn('专辑列表为空，强制使用本地模式');
+                        await this.loadAlbumsFromBackup();
                     }
 
                     this.updateLoadingMessage(this.texts.loadComplete);
@@ -620,13 +632,30 @@
                 } catch (error) {
                     console.error('初始化失败:', error);
 
-                    // 如果指定了 MusicBrainz ID 但获取失败，显示具体错误信息
-                    if (this.musicBrainzCollectionIds.length > 0) {
-                        this.showError(this.formatText('errorCollection', {
-                            ids: this.musicBrainzCollectionIds.join(', ')
-                        }));
-                    } else {
-                        this.showError(this.texts.errorNetwork);
+                    // 尝试使用本地模式作为最后的备选方案
+                    try {
+                        console.warn('尝试使用本地模式作为备选方案');
+                        await this.loadAlbumsFromBackup();
+                        
+                        this.updateLoadingMessage(this.texts.loadComplete);
+                        this.initThreeJS();
+                        this.createGrid();
+                        this.isInitializing = false;
+                        this.hideLoading();
+                        this.startAnimations();
+                        this.bindEvents();
+                        this.animate();
+                    } catch (backupError) {
+                        console.error('本地模式也失败:', backupError);
+                        
+                        // 如果指定了 MusicBrainz ID 但获取失败，显示具体错误信息
+                        if (this.musicBrainzCollectionIds.length > 0) {
+                            this.showError(this.formatText('errorCollection', {
+                                ids: this.musicBrainzCollectionIds.join(', ')
+                            }));
+                        } else {
+                            this.showError(this.texts.errorNetwork);
+                        }
                     }
                 }
             }
@@ -986,17 +1015,44 @@
                     // 自动扫描 cover 目录
                     console.log('自动扫描 cover 目录...');
                     this.updateLoadingMessage(this.texts.scanningDirectory);
-                    await this.scanCoverDirectory(coverDirUrl);
+                    
+                    try {
+                        await this.scanCoverDirectory(coverDirUrl);
+                    } catch (scanError) {
+                        console.warn('扫描目录失败，尝试手动添加本地图片:', scanError);
+                        
+                        // 如果扫描失败，手动添加cover目录下的图片
+                        const imageFiles = [
+                            '1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg', '7.jpg', '8.jpg'
+                        ];
+                        
+                        for (const file of imageFiles) {
+                            const imageUrl = `${coverDirUrl}${file}`;
+                            this.albums.push(imageUrl);
+                            this.albumUrls[imageUrl] = this.generateAlbumUrl(file);
+                        }
+                        
+                        console.log(`手动添加了 ${imageFiles.length} 个图片文件`);
+                    }
 
                     if (this.albums.length === 0) {
-                        throw new Error(this.texts.noCoversFound);
+                        // 如果仍然没有图片，添加至少一个默认图片路径
+                        const defaultImage = `${coverDirUrl}1.jpg`;
+                        this.albums.push(defaultImage);
+                        this.albumUrls[defaultImage] = this.generateAlbumUrl('1.jpg');
+                        console.warn('没有找到封面图片，添加了默认图片');
                     }
 
                     console.log(`✅ 本地专辑列表加载完成，共 ${this.albums.length} 张专辑封面`);
 
                 } catch (error) {
                     console.error('加载本地专辑列表失败:', error);
-                    throw error;
+                    // 即使失败也不抛出错误，而是添加一个默认图片
+                    const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/');
+                    const defaultImage = `${baseUrl}cover/1.jpg`;
+                    this.albums = [defaultImage];
+                    this.albumUrls[defaultImage] = this.generateAlbumUrl('1.jpg');
+                    console.warn('加载失败，使用默认图片');
                 }
             }
             
@@ -1256,6 +1312,13 @@
             }
 
             getRandomAlbum() {
+                // 检查专辑数组是否为空
+                if (this.albums.length === 0) {
+                    // 如果专辑数组为空，返回本地cover目录下的默认图片路径
+                    console.warn('专辑列表为空，使用本地cover目录下的默认图片');
+                    return './cover/1.jpg'; // 使用cover目录下的第一张图片作为默认图片
+                }
+                
                 if (this.isInitializing) {
                     // 初始化时优先使用不同的封面
                     return this.getUniqueAlbumForInitialization();
@@ -1266,6 +1329,13 @@
             }
 
             getUniqueAlbumForInitialization() {
+                // 检查专辑数组是否为空
+                if (this.albums.length === 0) {
+                    // 如果专辑数组为空，返回本地cover目录下的默认图片路径
+                    console.warn('专辑列表为空，使用本地cover目录下的默认图片');
+                    return './cover/1.jpg'; // 使用cover目录下的第一张图片作为默认图片
+                }
+                
                 // 如果还有未使用的专辑，优先选择
                 if (this.usedAlbums.length < this.albums.length) {
                     let albumIndex;
