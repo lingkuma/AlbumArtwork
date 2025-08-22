@@ -605,18 +605,36 @@
                     } else {
                         // 如果没有缓存，直接获取专辑列表
                         console.log('没有缓存的专辑列表，从 MusicBrainz 获取');
-                        try {
-                            await this.loadAlbumsFromMusicBrainz();
-                        } catch (error) {
-                            console.warn('从 MusicBrainz 获取专辑失败，尝试使用本地模式', error);
-                            // 如果从 MusicBrainz 获取失败，尝试使用本地模式
+                        // 最多尝试3次
+                        let retryCount = 0;
+                        const maxRetries = 3;
+                        let success = false;
+                        
+                        while (retryCount < maxRetries && !success) {
+                            try {
+                                await this.loadAlbumsFromMusicBrainz();
+                                success = true;
+                            } catch (error) {
+                                retryCount++;
+                                console.warn(`从 MusicBrainz 获取专辑失败 (尝试 ${retryCount}/${maxRetries})`, error);
+                                if (retryCount < maxRetries) {
+                                    // 等待一段时间后重试
+                                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+                                    console.log(`重试获取 MusicBrainz 数据 (${retryCount}/${maxRetries})...`);
+                                }
+                            }
+                        }
+                        
+                        // 只有在用户明确要求使用本地模式时才使用
+                        if (!success && window.location.search.includes('local=true')) {
+                            console.warn('多次尝试获取 MusicBrainz 数据失败，用户已指定使用本地模式');
                             await this.loadAlbumsFromBackup();
                         }
                     }
 
-                    // 如果专辑列表仍然为空，强制使用本地模式
-                    if (this.albums.length === 0) {
-                        console.warn('专辑列表为空，强制使用本地模式');
+                    // 只有在用户明确要求使用本地模式且专辑列表为空时才使用本地模式
+                    if (this.albums.length === 0 && window.location.search.includes('local=true')) {
+                        console.warn('专辑列表为空，用户已指定使用本地模式');
                         await this.loadAlbumsFromBackup();
                     }
 
@@ -632,22 +650,25 @@
                 } catch (error) {
                     console.error('初始化失败:', error);
 
-                    // 尝试使用本地模式作为最后的备选方案
-                    try {
-                        console.warn('尝试使用本地模式作为备选方案');
-                        await this.loadAlbumsFromBackup();
-                        
-                        this.updateLoadingMessage(this.texts.loadComplete);
-                        this.initThreeJS();
-                        this.createGrid();
-                        this.isInitializing = false;
-                        this.hideLoading();
-                        this.startAnimations();
-                        this.bindEvents();
-                        this.animate();
-                    } catch (backupError) {
-                        console.error('本地模式也失败:', backupError);
-                        
+                    // 只有在用户明确要求使用本地模式时才使用本地模式作为备选方案
+                    if (window.location.search.includes('local=true')) {
+                        try {
+                            console.warn('用户指定使用本地模式，尝试作为备选方案');
+                            await this.loadAlbumsFromBackup();
+                            
+                            this.updateLoadingMessage(this.texts.loadComplete);
+                            this.initThreeJS();
+                            this.createGrid();
+                            this.isInitializing = false;
+                            this.hideLoading();
+                            this.startAnimations();
+                            this.bindEvents();
+                            this.animate();
+                        } catch (backupError) {
+                            console.error('本地模式也失败:', backupError);
+                            this.showError(this.texts.errorNetwork);
+                        }
+                    } else {
                         // 如果指定了 MusicBrainz ID 但获取失败，显示具体错误信息
                         if (this.musicBrainzCollectionIds.length > 0) {
                             this.showError(this.formatText('errorCollection', {
@@ -913,17 +934,31 @@
                     for (let i = 0; i < totalCount; i += batchSize) {
                         const batch = allReleases.slice(i, i + batchSize);
                         const promises = batch.map(async (release) => {
-                            try {
-                                const coverUrl = await this.getCoverArt(release.id);
-                                // 直接添加到列表，不检查是否为空
-                                this.albums.push(coverUrl);
-                                this.albumUrls[coverUrl] = `https://musicbrainz.org/release/${release.id}`;
-                                loadedCount++;
-                                return 1;
-                            } catch (error) {
-                                console.warn(`无法加载专辑封面: ${release.title || release.id}`, error);
-                                return 0;
+                            // 对每个封面添加重试机制
+                            let retryCount = 0;
+                            const maxRetries = 2;
+                            
+                            while (retryCount <= maxRetries) {
+                                try {
+                                    const coverUrl = await this.getCoverArt(release.id);
+                                    // 直接添加到列表，不检查是否为空
+                                    this.albums.push(coverUrl);
+                                    this.albumUrls[coverUrl] = `https://musicbrainz.org/release/${release.id}`;
+                                    loadedCount++;
+                                    return 1;
+                                } catch (error) {
+                                    retryCount++;
+                                    if (retryCount <= maxRetries) {
+                                        console.warn(`获取封面失败，重试 (${retryCount}/${maxRetries}): ${release.title || release.id}`);
+                                        // 等待一段时间后重试
+                                        await new Promise(resolve => setTimeout(resolve, 300 * retryCount));
+                                    } else {
+                                        console.warn(`无法加载专辑封面: ${release.title || release.id}`, error);
+                                        return 0;
+                                    }
+                                }
                             }
+                            return 0;
                         });
                         
                         // 等待当前批次完成
@@ -939,45 +974,74 @@
                         );
                     }
 
-                    // 不再检查专辑数量是否为零，因为我们现在总是添加封面到列表中
-
                     console.log(`✅ 成功加载 ${this.albums.length} 张专辑封面`);
                     this.saveCoverCache(); // 保存缓存
 
                 } catch (error) {
                     console.error('❌ 从 MusicBrainz 加载专辑失败:', error.message);
-                    // 如果指定了ID但最终还是失败，不要回退到本地，而是抛出错误
-                    if (this.musicBrainzCollectionIds.length > 0) {
-                        throw new Error(this.formatText('errorCollection', {
-                            ids: this.musicBrainzCollectionIds.join(', ')
-                        }) + `: ${error.message}`);
-                    }
-                    // 只有在没有指定ID的情况下才使用备用列表
-                    await this.loadAlbumsFromBackup();
+                    // 不自动回退到本地模式，而是抛出错误
+                    throw new Error(this.formatText('errorCollection', {
+                        ids: this.musicBrainzCollectionIds.join(', ')
+                    }) + `: ${error.message}`);
                 }
             }
 
             // 获取 MusicBrainz 收藏栏中的专辑列表
             async fetchCollectionReleases(collectionId) {
                 // 使用 CORS 代理来访问 MusicBrainz API
-                const proxyUrl = 'https://corsproxy.io/?';
+                const proxyUrls = [
+                    'https://corsproxy.io/?',
+                    'https://api.allorigins.win/raw?url=',
+                    'https://cors-anywhere.herokuapp.com/'
+                ];
+                
                 const targetUrl = `https://musicbrainz.org/ws/2/release?collection=${collectionId}&limit=100&fmt=json`;
-                const url = proxyUrl + encodeURIComponent(targetUrl);
-
-                try {
-                    const response = await fetch(url);
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                
+                // 尝试不同的代理
+                for (let i = 0; i < proxyUrls.length; i++) {
+                    const proxyUrl = proxyUrls[i];
+                    const url = proxyUrl + encodeURIComponent(targetUrl);
+                    
+                    try {
+                        console.log(`尝试使用代理 ${i+1}/${proxyUrls.length} 获取收藏栏 ${collectionId}`);
+                        
+                        // 添加重试机制
+                        let retryCount = 0;
+                        const maxRetries = 2;
+                        
+                        while (retryCount <= maxRetries) {
+                            try {
+                                const response = await fetch(url);
+                                
+                                if (!response.ok) {
+                                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                                }
+                                
+                                // 解析响应
+                                const data = await response.json();
+                                console.log(`✅ 成功获取收藏栏 ${collectionId} (使用代理 ${i+1})`);
+                                return data.releases || [];
+                            } catch (fetchError) {
+                                retryCount++;
+                                if (retryCount <= maxRetries) {
+                                    console.warn(`获取收藏栏失败，重试 (${retryCount}/${maxRetries})`, fetchError);
+                                    // 等待一段时间后重试
+                                    await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
+                                } else {
+                                    // 超过重试次数，尝试下一个代理
+                                    console.error(`使用代理 ${i+1} 获取收藏栏 ${collectionId} 失败:`, fetchError);
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`使用代理 ${i+1} 获取收藏栏 ${collectionId} 失败:`, error);
+                        // 继续尝试下一个代理
                     }
-
-                    // corsproxy.io 直接返回原始内容，不需要解析 .contents
-                    const data = await response.json();
-                    return data.releases || [];
-                } catch (error) {
-                    console.error(`获取收藏栏 ${collectionId} 失败:`, error);
-                    throw error;
                 }
+                
+                // 所有代理都失败了
+                throw new Error(`无法获取收藏栏 ${collectionId}，所有代理都失败`);
             }
 
             // 获取专辑封面
@@ -1023,7 +1087,9 @@
                         
                         // 如果扫描失败，手动添加cover目录下的图片
                         const imageFiles = [
-                            '1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg', '7.jpg', '8.jpg'
+                            '1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg', '7.jpg', '8.jpg',
+                            '10000x10000bb-100.jpg', '10000x10000bb-1001.jpg', '10000x10000bb-1010.jpg',
+                            '10000x110000bb-100.jpg', '5000x5000bb.png', '5000x5000bb1.webp'
                         ];
                         
                         for (const file of imageFiles) {
