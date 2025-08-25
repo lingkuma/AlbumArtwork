@@ -317,17 +317,17 @@
     <!-- 设置面板 -->
     <div class="settings-panel" id="settings-panel">
         <div class="settings-section">
-            <div class="settings-section-title">布局设置</div>
+            <div class="settings-section-title" data-text="layoutSettings">布局设置</div>
             <div class="settings-item">
                 <div class="settings-row">
-                    <label class="settings-label">行数</label>
+                    <label class="settings-label" data-text="rows">行数</label>
                     <span class="settings-value" id="rows-value">6</span>
                 </div>
                 <input type="range" class="settings-range" id="rows-range" min="2" max="16" value="6">
             </div>
             <div class="settings-item">
                 <div class="settings-row">
-                    <label class="settings-label">间隙大小</label>
+                    <label class="settings-label" data-text="gapSize">间隙大小</label>
                     <span class="settings-value" id="gap-value">0</span>
                 </div>
                 <input type="range" class="settings-range" id="gap-range" min="0" max="0.1" step="0.01" value="0">
@@ -335,48 +335,48 @@
         </div>
         
         <div class="settings-section">
-            <div class="settings-section-title">动画设置</div>
+            <div class="settings-section-title" data-text="animationSettings">动画设置</div>
             <div class="settings-item">
                 <div class="settings-row">
-                    <label class="settings-label">动画间隔 (毫秒)</label>
+                    <label class="settings-label" data-text="animationInterval">动画间隔 (毫秒)</label>
                     <span class="settings-value" id="animation-interval-value">3000</span>
                 </div>
                 <input type="range" class="settings-range" id="animation-interval-range" min="1000" max="10000" step="500" value="3000">
             </div>
             <div class="settings-item">
-                <label class="settings-label">动画类型权重</label>
+                <label class="settings-label" data-text="animationWeights">动画类型权重</label>
                 <div class="weight-container">
-                    <label>翻转:</label>
+                    <label data-text="flip">翻转:</label>
                     <input type="range" class="weight-slider" id="flip-weight" min="0" max="100" value="15">
                     <span class="settings-value" id="flip-weight-value">15</span>
                 </div>
                 <div class="weight-container">
-                    <label>掉落:</label>
+                    <label data-text="drop">掉落:</label>
                     <input type="range" class="weight-slider" id="drop-weight" min="0" max="100" value="15">
                     <span class="settings-value" id="drop-weight-value">15</span>
                 </div>
                 <div class="weight-container">
-                    <label>连锁掉落:</label>
+                    <label data-text="linkedDrop">连锁掉落:</label>
                     <input type="range" class="weight-slider" id="linked-drop-weight" min="0" max="100" value="15">
                     <span class="settings-value" id="linked-drop-weight-value">15</span>
                 </div>
                 <div class="weight-container">
-                    <label>滚动掉落:</label>
+                    <label data-text="rollDrop">滚动掉落:</label>
                     <input type="range" class="weight-slider" id="roll-drop-weight" min="0" max="100" value="15">
                     <span class="settings-value" id="roll-drop-weight-value">15</span>
                 </div>
                 <div class="weight-container">
-                    <label>图钉旋转:</label>
+                    <label data-text="pinRotation">图钉旋转:</label>
                     <input type="range" class="weight-slider" id="pin-rotation-weight" min="0" max="100" value="15">
                     <span class="settings-value" id="pin-rotation-weight-value">15</span>
                 </div>
                 <div class="weight-container">
-                    <label>行滚动:</label>
+                    <label data-text="rowRoll">行滚动:</label>
                     <input type="range" class="weight-slider" id="row-roll-weight" min="0" max="100" value="12.5">
                     <span class="settings-value" id="row-roll-weight-value">12.5</span>
                 </div>
                 <div class="weight-container">
-                    <label>行掉落:</label>
+                    <label data-text="rowDrop">行掉落:</label>
                     <input type="range" class="weight-slider" id="row-drop-weight" min="0" max="100" value="12.5">
                     <span class="settings-value" id="row-drop-weight-value">12.5</span>
                 </div>
@@ -384,22 +384,22 @@
         </div>
         
         <div class="settings-section">
-            <div class="settings-section-title">外观设置</div>
+            <div class="settings-section-title" data-text="appearanceSettings">外观设置</div>
             <div class="settings-item">
                 <div class="settings-row">
-                    <label class="settings-label">背景颜色</label>
+                    <label class="settings-label" data-text="backgroundColor">背景颜色</label>
                     <input type="color" class="settings-color" id="background-color" value="#000000">
                 </div>
             </div>
         </div>
         
         <div class="settings-section">
-            <div class="settings-section-title">功能设置</div>
+            <div class="settings-section-title" data-text="functionSettings">功能设置</div>
             <div class="settings-item">
                 <div class="settings-row">
-                    <label class="settings-label">桌面模式</label>
+                    <label class="settings-label" data-text="desktopMode">桌面模式</label>
                     <input type="checkbox" id="desktop-mode-toggle">
-                    <span class="settings-description">启用后只响应三连击左键，适合作为桌面壁纸</span>
+                    <span class="settings-description" data-text="desktopModeDesc">启用后只响应三连击左键，适合作为桌面壁纸</span>
                 </div>
             </div>
         </div>
@@ -478,7 +478,27 @@
                 // 从本地存储加载设置
                 this.loadSettings();
 
+                // 更新UI文本为对应语言
+                this.updateUITexts();
+
                 this.init();
+            }
+
+            // 更新UI中的文本为对应语言
+            updateUITexts() {
+                // 更新所有带有 data-text 属性的元素
+                const elementsWithText = document.querySelectorAll('[data-text]');
+                elementsWithText.forEach(element => {
+                    const textKey = element.getAttribute('data-text');
+                    if (this.texts[textKey]) {
+                        // 检查是否是 label 元素且包含冒号，如果是则保留冒号
+                        if (element.tagName.toLowerCase() === 'label' && element.textContent.includes(':')) {
+                            element.textContent = this.texts[textKey] + ':';
+                        } else {
+                            element.textContent = this.texts[textKey];
+                        }
+                    }
+                });
             }
 
             // 检测用户语言
@@ -518,7 +538,34 @@
                         loadingLinks: '正在加载外部链接...',
                         externalLinksReady: '外部链接已就绪',
                         linkCopied: '{service}链接已复制到剪贴板',
-                        scanningDirectory: '正在扫描 cover 目录...'
+                        scanningDirectory: '正在扫描 cover 目录...',
+                        // 设置面板文本
+                        layoutSettings: '布局设置',
+                        rows: '行数',
+                        gapSize: '间隙大小',
+                        animationSettings: '动画设置',
+                        animationInterval: '动画间隔 (毫秒)',
+                        animationWeights: '动画类型权重',
+                        flip: '翻转',
+                        drop: '掉落',
+                        linkedDrop: '连锁掉落',
+                        rollDrop: '滚动掉落',
+                        pinRotation: '图钉旋转',
+                        rowRoll: '行滚动',
+                        rowDrop: '行掉落',
+                        appearanceSettings: '外观设置',
+                        backgroundColor: '背景颜色',
+                        functionSettings: '功能设置',
+                        desktopMode: '桌面模式',
+                        desktopModeDesc: '启用后只响应三连击左键，适合作为桌面壁纸',
+                        resetAllSettings: '重置所有设置',
+                        clearCache: '清除缓存',
+                        settingsSaved: '设置已保存',
+                        settingsSaveFailed: '设置保存失败',
+                        desktopModeEnabled: '已启用桌面模式，只响应三连击左键',
+                        desktopModeDisabled: '已禁用桌面模式，正常响应点击事件',
+                        allSettingsReset: '所有设置已重置为默认值',
+                        allCacheCleared: '所有缓存已清除，页面将在3秒后刷新'
                     },
                     en: {
                         loading: 'Loading album covers...',
@@ -540,7 +587,34 @@
                         loadingLinks: 'Loading external links...',
                         externalLinksReady: 'External links ready',
                         linkCopied: '{service} link copied to clipboard',
-                        scanningDirectory: 'Scanning cover directory...'
+                        scanningDirectory: 'Scanning cover directory...',
+                        // 设置面板文本
+                        layoutSettings: 'Layout Settings',
+                        rows: 'Rows',
+                        gapSize: 'Gap Size',
+                        animationSettings: 'Animation Settings',
+                        animationInterval: 'Animation Interval (ms)',
+                        animationWeights: 'Animation Type Weights',
+                        flip: 'Flip',
+                        drop: 'Drop',
+                        linkedDrop: 'Linked Drop',
+                        rollDrop: 'Roll Drop',
+                        pinRotation: 'Pin Rotation',
+                        rowRoll: 'Row Roll',
+                        rowDrop: 'Row Drop',
+                        appearanceSettings: 'Appearance Settings',
+                        backgroundColor: 'Background Color',
+                        functionSettings: 'Function Settings',
+                        desktopMode: 'Desktop Mode',
+                        desktopModeDesc: 'When enabled, only responds to triple-click, suitable for desktop wallpaper',
+                        resetAllSettings: 'Reset All Settings',
+                        clearCache: 'Clear Cache',
+                        settingsSaved: 'Settings saved',
+                        settingsSaveFailed: 'Failed to save settings',
+                        desktopModeEnabled: 'Desktop mode enabled, only responds to triple-click',
+                        desktopModeDisabled: 'Desktop mode disabled, responds to normal clicks',
+                        allSettingsReset: 'All settings have been reset to default values',
+                        allCacheCleared: 'All cache cleared, page will refresh in 3 seconds'
                     }
                 };
 
@@ -3814,10 +3888,10 @@
                     console.log('设置已保存到本地存储:', settings);
                     
                     // 显示保存成功提示
-                    this.showStatusMessage('设置已保存');
+                    this.showStatusMessage(this.texts.settingsSaved);
                 } catch (error) {
                     console.warn('保存设置失败:', error);
-                    this.showStatusMessage('设置保存失败');
+                    this.showStatusMessage(this.texts.settingsSaveFailed);
                 }
             }
             
@@ -3941,9 +4015,9 @@
                     
                     // 显示状态消息
                     if (this.desktopMode) {
-                        this.showStatusMessage('已启用桌面模式，只响应三连击左键');
+                        this.showStatusMessage(this.texts.desktopModeEnabled);
                     } else {
-                        this.showStatusMessage('已禁用桌面模式，正常响应点击事件');
+                        this.showStatusMessage(this.texts.desktopModeDisabled);
                     }
                 });
                 
@@ -3974,7 +4048,7 @@
                 
                 // 创建重置按钮
                 const resetButton = document.createElement('button');
-                resetButton.textContent = '重置所有设置';
+                resetButton.textContent = this.texts.resetAllSettings;
                 resetButton.style.padding = '8px 16px';
                 resetButton.style.background = 'rgba(255, 59, 48, 0.8)';
                 resetButton.style.color = 'white';
@@ -4004,7 +4078,7 @@
                 
                 // 添加清除缓存按钮
                 const clearCacheButton = document.createElement('button');
-                clearCacheButton.textContent = '清除缓存';
+                clearCacheButton.textContent = this.texts.clearCache;
                 clearCacheButton.style.padding = '8px 16px';
                 clearCacheButton.style.background = 'rgba(120, 120, 128, 0.5)';
                 clearCacheButton.style.color = 'white';
@@ -4083,7 +4157,7 @@
                 // 清除本地存储中的设置
                 localStorage.removeItem('mac_screensaver_settings');
                 
-                this.showStatusMessage('所有设置已重置为默认值');
+                this.showStatusMessage(this.texts.allSettingsReset);
             }
             
             // 清除所有缓存
@@ -4095,7 +4169,7 @@
                 // 清除设置缓存
                 localStorage.removeItem('mac_screensaver_settings');
                 
-                this.showStatusMessage('所有缓存已清除，页面将在3秒后刷新');
+                this.showStatusMessage(this.texts.allCacheCleared);
                 
                 // 3秒后刷新页面
                 setTimeout(() => {
