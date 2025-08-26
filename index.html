@@ -3348,6 +3348,7 @@
                         let spotifyUrl = null;
                         let youtubeMusicUrl = null;
                         let musicBrainzUrl = null;
+                        let listenBrainzUrl = null;
                         let otherLinks = [];
                         
                         // 获取专辑标题
@@ -3356,26 +3357,35 @@
                         // 设置MusicBrainz链接
                         musicBrainzUrl = `https://musicbrainz.org/release/${mbid}`;
                         
+                        // 设置ListenBrainz专辑页面链接（基于MBID）
+                        listenBrainzUrl = `https://listenbrainz.org/release/${mbid}/`;
+                        
                         for (const relation of data.relations) {
-                            if (relation.type === 'streaming' && relation.url) {
+                            if (relation.url) {
                                 const url = relation.url.resource;
-                                if (url.includes('spotify.com')) {
-                                    spotifyUrl = url;
-                                } else if (url.includes('music.youtube.com')) {
-                                    youtubeMusicUrl = url;
+                                
+                                // 检查是否是ListenBrainz链接
+                                if (url.includes('listenbrainz.org')) {
+                                    listenBrainzUrl = url; // 优先使用API返回的ListenBrainz链接
+                                } else if (relation.type === 'streaming' || relation.type === 'free streaming') {
+                                    if (url.includes('spotify.com')) {
+                                        spotifyUrl = url;
+                                    } else if (url.includes('music.youtube.com')) {
+                                        youtubeMusicUrl = url;
+                                    } else {
+                                        // 其他流媒体链接
+                                        otherLinks.push({
+                                            name: this.getServiceNameFromUrl(url),
+                                            url: url
+                                        });
+                                    }
                                 } else {
-                                    // 其他流媒体链接
+                                    // 其他类型的链接
                                     otherLinks.push({
-                                        name: this.getServiceNameFromUrl(url),
+                                        name: relation.type || this.getServiceNameFromUrl(url),
                                         url: url
                                     });
                                 }
-                            } else if (relation.url) {
-                                // 其他类型的链接
-                                otherLinks.push({
-                                    name: relation.type || this.getServiceNameFromUrl(relation.url.resource),
-                                    url: relation.url.resource
-                                });
                             }
                         }
                         
@@ -3383,6 +3393,7 @@
                         const linkData = { 
                             albumTitle,
                             musicBrainzUrl, 
+                            listenBrainzUrl,
                             spotifyUrl, 
                             youtubeMusicUrl,
                             otherLinks
@@ -3417,7 +3428,7 @@
             
             // 显示链接对话框
             showLinksDialog(linkData) {
-                const { albumTitle, musicBrainzUrl, spotifyUrl, youtubeMusicUrl, otherLinks } = linkData;
+                const { albumTitle, musicBrainzUrl, listenBrainzUrl, spotifyUrl, youtubeMusicUrl, otherLinks } = linkData;
                 
                 // 移除可能已存在的对话框
                 const existingDialog = document.getElementById('links-dialog');
@@ -3440,16 +3451,33 @@
                         <ul class="links-list">
                 `;
                 
-                // 添加MusicBrainz链接
-                if (musicBrainzUrl) {
-                    dialogContent += `
-                        <li>
-                            <span class="link-service">MusicBrainz</span>
-                            <a href="#" class="link-url" data-url="${musicBrainzUrl}">
-                                ${musicBrainzUrl}
-                            </a>
-                        </li>
-                    `;
+                // 添加第一行双列布局：MusicBrainz和ListenBrainz
+                if (musicBrainzUrl || listenBrainzUrl) {
+                    dialogContent += `<div class="two-column-container">`;
+                    
+                    if (musicBrainzUrl) {
+                        dialogContent += `
+                            <li class="column-item">
+                                <span class="link-service">MusicBrainz</span>
+                                <a href="#" class="link-url" data-url="${musicBrainzUrl}">
+                                    ${musicBrainzUrl}
+                                </a>
+                            </li>
+                        `;
+                    }
+                    
+                    if (listenBrainzUrl) {
+                        dialogContent += `
+                            <li class="column-item">
+                                <span class="link-service">ListenBrainz</span>
+                                <a href="#" class="link-url" data-url="${listenBrainzUrl}">
+                                    ${listenBrainzUrl}
+                                </a>
+                            </li>
+                        `;
+                    }
+                    
+                    dialogContent += `</div>`;
                 }
                 
                 // 添加Spotify链接
@@ -3491,7 +3519,7 @@
                 }
                 
                 // 如果没有找到任何链接
-                if (!musicBrainzUrl && !spotifyUrl && !youtubeMusicUrl && (!otherLinks || otherLinks.length === 0)) {
+                if (!musicBrainzUrl && !listenBrainzUrl && !spotifyUrl && !youtubeMusicUrl && (!otherLinks || otherLinks.length === 0)) {
                     dialogContent += `
                         <li class="no-links">
                             ${this.texts.noLinksFound}
@@ -3606,6 +3634,29 @@
                     }
                     .links-list li:last-child {
                         margin-bottom: 0;
+                    }
+                    
+                    /* 双列布局样式 */
+                    .two-column-container {
+                        display: flex;
+                        gap: 10px;
+                        margin-bottom: 10px;
+                    }
+                    .column-item {
+                        flex: 1;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        padding: 15px;
+                        border-radius: 12px;
+                        background-color: rgba(255, 255, 255, 0.05);
+                        transition: all 0.2s ease;
+                        cursor: pointer;
+                        list-style: none;
+                    }
+                    .column-item:hover {
+                        background-color: rgba(255, 255, 255, 0.1);
+                        transform: translateY(-2px);
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
                     }
                     .link-service {
                         font-weight: 600;
