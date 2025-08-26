@@ -3344,9 +3344,13 @@
                 })
                 .then(data => {
                     if (data && data.relations) {
-                        // 查找Spotify和YouTube Music链接以及其他外部链接
+                        // 查找Spotify、YouTube Music、Apple Music、iTunes、Deezer、Tidal链接以及其他外部链接
                         let spotifyUrl = null;
                         let youtubeMusicUrl = null;
+                        let appleMusicUrl = null;
+                        let itunesUrl = null;
+                        let deezerUrl = null;
+                        let tidalUrl = null;
                         let musicBrainzUrl = null;
                         let listenBrainzUrl = null;
                         let otherLinks = [];
@@ -3367,11 +3371,19 @@
                                 // 检查是否是ListenBrainz链接
                                 if (url.includes('listenbrainz.org')) {
                                     listenBrainzUrl = url; // 优先使用API返回的ListenBrainz链接
-                                } else if (relation.type === 'streaming' || relation.type === 'free streaming') {
+                                } else if (relation.type === 'streaming' || relation.type === 'free streaming' || relation.type === 'purchase for download') {
                                     if (url.includes('spotify.com')) {
                                         spotifyUrl = url;
                                     } else if (url.includes('music.youtube.com')) {
                                         youtubeMusicUrl = url;
+                                    } else if (url.includes('music.apple.com')) {
+                                        appleMusicUrl = url;
+                                    } else if (url.includes('itunes.apple.com')) {
+                                        itunesUrl = url;
+                                    } else if (url.includes('deezer.com')) {
+                                        deezerUrl = url;
+                                    } else if (url.includes('tidal.com')) {
+                                        tidalUrl = url;
                                     } else {
                                         // 其他流媒体链接
                                         otherLinks.push({
@@ -3396,6 +3408,10 @@
                             listenBrainzUrl,
                             spotifyUrl, 
                             youtubeMusicUrl,
+                            appleMusicUrl,
+                            itunesUrl,
+                            deezerUrl,
+                            tidalUrl,
                             otherLinks
                         };
                         this.externalLinksCache.set(mbid, linkData);
@@ -3428,7 +3444,7 @@
             
             // 显示链接对话框
             showLinksDialog(linkData) {
-                const { albumTitle, musicBrainzUrl, listenBrainzUrl, spotifyUrl, youtubeMusicUrl, otherLinks } = linkData;
+                const { albumTitle, musicBrainzUrl, listenBrainzUrl, spotifyUrl, youtubeMusicUrl, appleMusicUrl, itunesUrl, deezerUrl, tidalUrl, otherLinks } = linkData;
                 
                 // 移除可能已存在的对话框
                 const existingDialog = document.getElementById('links-dialog');
@@ -3479,27 +3495,30 @@
                 }
                 
                 // 添加Spotify链接
-                if (spotifyUrl) {
-                    dialogContent += `
-                        <li>
-                            <span class="link-service">Spotify</span>
-                            <a href="#" class="link-url" data-url="${spotifyUrl}">
-                                ${spotifyUrl}
-                            </a>
-                        </li>
-                    `;
-                }
+                // 音乐平台显示顺序配置（可自定义排序）
+                const platformOrder = [
+                    { key: 'youtubeMusicUrl', name: 'YouTube Music', linkClass: 'youtube-music-link', iconClass: 'youtube-music-icon', iconUrl: 'https://music.youtube.com/img/favicon_144.png', iconImgClass: 'youtube-icon' },
+                    { key: 'spotifyUrl', name: 'Spotify', linkClass: 'spotify-link', iconClass: 'spotify-icon', iconUrl: 'https://open.spotifycdn.com/cdn/images/favicon.0f31d2ea.ico', iconImgClass: 'spotify-icon-img' },
+                    { key: 'appleMusicUrl', name: 'Apple Music', linkClass: 'apple-music-link', iconClass: 'apple-music-icon', iconUrl: 'https://music.apple.com/assets/favicon/favicon-180.png', iconImgClass: 'apple-icon' },
+                    { key: 'itunesUrl', name: 'iTunes', linkClass: 'itunes-link', iconClass: 'itunes-icon', iconUrl: 'https://www.apple.com/v/itunes/home/l/images/overview/itunes_logo__dwjkvx332d0m_large.png', iconImgClass: 'itunes-icon-img' },
+                    { key: 'deezerUrl', name: 'Deezer', linkClass: 'deezer-link', iconClass: 'deezer-icon', iconUrl: 'https://cdn-files.dzcdn.net/cache/images/common/favicon/favicon-144x144.07ae81558433f1009494.png', iconImgClass: 'deezer-icon-img' },
+                    { key: 'tidalUrl', name: 'Tidal', linkClass: 'tidal-link', iconClass: 'tidal-icon', iconUrl: 'data:image/svg+xml,%3csvg%20xmlns=\'http://www.w3.org/2000/svg\'%20viewBox=\'0%200%20239.5%20159.7\'%20id=\'tidal-diamond\'%3e%3cpath%20d=\'M159.67%2039.938l-39.88%2039.88-39.88-39.88%2039.88-39.88zM159.669%20119.756l-39.88%2039.88-39.88-39.88%2039.88-39.88zM79.809%2039.912l-39.88%2039.88-39.88-39.88%2039.88-39.88zM239.505%2039.93l-39.88%2039.88-39.88-39.88%2039.88-39.88z\'/%3e%3c/svg%3e', iconImgClass: 'tidal-icon-img' }
+                ];
                 
-                // 添加YouTube Music链接
-                if (youtubeMusicUrl) {
-                    dialogContent += `
-                        <li>
-                            <span class="link-service">YouTube Music</span>
-                            <a href="#" class="link-url" data-url="${youtubeMusicUrl}">
-                                ${youtubeMusicUrl}
-                            </a>
-                        </li>
-                    `;
+                // 按配置的顺序显示音乐平台
+                const platformLinks = { youtubeMusicUrl, spotifyUrl, appleMusicUrl, itunesUrl, deezerUrl, tidalUrl };
+                
+                for (const platform of platformOrder) {
+                    const url = platformLinks[platform.key];
+                    if (url) {
+                        dialogContent += `
+                            <li class="${platform.linkClass}">
+                                <a href="#" class="link-url ${platform.iconClass}" data-url="${url}">
+                                    <img src="${platform.iconUrl}" alt="${platform.name}" class="link-icon ${platform.iconImgClass}" />
+                                </a>
+                            </li>
+                        `;
+                    }
                 }
                 
                 // 添加其他链接
@@ -3517,7 +3536,7 @@
                 }
                 
                 // 如果没有找到任何链接
-                if (!musicBrainzUrl && !listenBrainzUrl && !spotifyUrl && !youtubeMusicUrl && (!otherLinks || otherLinks.length === 0)) {
+                if (!musicBrainzUrl && !listenBrainzUrl && !spotifyUrl && !youtubeMusicUrl && !appleMusicUrl && !itunesUrl && !deezerUrl && !tidalUrl && (!otherLinks || otherLinks.length === 0)) {
                     dialogContent += `
                         <li class="no-links">
                             ${this.texts.noLinksFound}
@@ -3690,6 +3709,498 @@
                     .icon-link:hover .link-icon {
                         filter: brightness(1.1);
                         transform: scale(1.05);
+                    }
+                    
+                    /* YouTube Music 特殊动效 */
+                    .youtube-music-link {
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    
+                    .youtube-music-icon {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 100%;
+                        height: 100%;
+                        padding: 0;
+                    }
+                    
+                    .youtube-icon {
+                        width: 100%;
+                        height: 50px;
+                        max-width: 120px;
+                        object-fit: contain;
+                        object-position: center;
+                        filter: brightness(0.9);
+                        transition: all 0.3s ease;
+                        animation: youtubePulse 2s ease-in-out infinite;
+                    }
+                    
+                    /* YouTube Music 脉冲动效 */
+                    @keyframes youtubePulse {
+                        0%, 100% {
+                            filter: brightness(0.9) drop-shadow(0 0 5px rgba(255, 0, 0, 0.3));
+                            transform: scale(1);
+                        }
+                        50% {
+                            filter: brightness(1.1) drop-shadow(0 0 15px rgba(255, 0, 0, 0.6));
+                            transform: scale(1.02);
+                        }
+                    }
+                    
+                    /* 悬停时的加强效果 */
+                    .youtube-music-link:hover .youtube-icon {
+                        animation: youtubeHoverPulse 1s ease-in-out infinite;
+                        filter: brightness(1.2) drop-shadow(0 0 20px rgba(255, 0, 0, 0.8));
+                    }
+                    
+                    @keyframes youtubeHoverPulse {
+                        0%, 100% {
+                            transform: scale(1.05);
+                            filter: brightness(1.2) drop-shadow(0 0 20px rgba(255, 0, 0, 0.8));
+                        }
+                        50% {
+                            transform: scale(1.08);
+                            filter: brightness(1.3) drop-shadow(0 0 25px rgba(255, 0, 0, 1));
+                        }
+                    }
+                    
+                    /* 背景光晕效果 */
+                    .youtube-music-link::before {
+                        content: '';
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        width: 100%;
+                        height: 100%;
+                        background: radial-gradient(circle, rgba(255, 0, 0, 0.1) 0%, transparent 70%);
+                        transform: translate(-50%, -50%);
+                        animation: youtubeGlow 3s ease-in-out infinite;
+                        z-index: -1;
+                        border-radius: 12px;
+                    }
+                    
+                    @keyframes youtubeGlow {
+                        0%, 100% {
+                            opacity: 0.3;
+                            transform: translate(-50%, -50%) scale(1);
+                        }
+                        50% {
+                            opacity: 0.6;
+                            transform: translate(-50%, -50%) scale(1.1);
+                        }
+                    }
+                    
+                    /* Spotify 特殊动效 */
+                    .spotify-link {
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    
+                    .spotify-icon {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 100%;
+                        height: 100%;
+                        padding: 0;
+                    }
+                    
+                    .spotify-icon-img {
+                        width: 100%;
+                        height: 50px;
+                        max-width: 120px;
+                        object-fit: contain;
+                        object-position: center;
+                        filter: brightness(0.9);
+                        transition: all 0.3s ease;
+                        animation: spotifyPulse 2.5s ease-in-out infinite;
+                    }
+                    
+                    /* Spotify 脉冲动效 */
+                    @keyframes spotifyPulse {
+                        0%, 100% {
+                            filter: brightness(0.9) drop-shadow(0 0 5px rgba(29, 185, 84, 0.3));
+                            transform: scale(1);
+                        }
+                        50% {
+                            filter: brightness(1.1) drop-shadow(0 0 15px rgba(29, 185, 84, 0.6));
+                            transform: scale(1.02);
+                        }
+                    }
+                    
+                    /* 悬停时的加强效果 */
+                    .spotify-link:hover .spotify-icon-img {
+                        animation: spotifyHoverPulse 1.2s ease-in-out infinite;
+                        filter: brightness(1.2) drop-shadow(0 0 20px rgba(29, 185, 84, 0.8));
+                    }
+                    
+                    @keyframes spotifyHoverPulse {
+                        0%, 100% {
+                            transform: scale(1.05);
+                            filter: brightness(1.2) drop-shadow(0 0 20px rgba(29, 185, 84, 0.8));
+                        }
+                        50% {
+                            transform: scale(1.08);
+                            filter: brightness(1.3) drop-shadow(0 0 25px rgba(29, 185, 84, 1));
+                        }
+                    }
+                    
+                    /* 背景光晕效果 */
+                    .spotify-link::before {
+                        content: '';
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        width: 100%;
+                        height: 100%;
+                        background: radial-gradient(circle, rgba(29, 185, 84, 0.1) 0%, transparent 70%);
+                        transform: translate(-50%, -50%);
+                        animation: spotifyGlow 3.5s ease-in-out infinite;
+                        z-index: -1;
+                        border-radius: 12px;
+                    }
+                    
+                    @keyframes spotifyGlow {
+                        0%, 100% {
+                            opacity: 0.3;
+                            transform: translate(-50%, -50%) scale(1);
+                        }
+                        50% {
+                            opacity: 0.6;
+                            transform: translate(-50%, -50%) scale(1.1);
+                        }
+                    }
+                    
+                    /* Apple Music 特殊动效 */
+                    .apple-music-link {
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    
+                    .apple-music-icon {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 100%;
+                        height: 100%;
+                        padding: 0;
+                    }
+                    
+                    .apple-icon {
+                        width: 100%;
+                        height: 50px;
+                        max-width: 120px;
+                        object-fit: contain;
+                        object-position: center;
+                        filter: brightness(0.9);
+                        transition: all 0.3s ease;
+                        animation: applePulse 3s ease-in-out infinite;
+                    }
+                    
+                    /* Apple Music 简单脉冲动效 */
+                    @keyframes applePulse {
+                        0%, 100% {
+                            filter: brightness(0.9) drop-shadow(0 0 5px rgba(255, 45, 85, 0.3));
+                            transform: scale(1);
+                        }
+                        50% {
+                            filter: brightness(1.1) drop-shadow(0 0 15px rgba(255, 45, 85, 0.6));
+                            transform: scale(1.02);
+                        }
+                    }
+                    
+                    /* 悬停时的加强效果 */
+                    .apple-music-link:hover .apple-icon {
+                        animation: appleHoverPulse 1s ease-in-out infinite;
+                        filter: brightness(1.2) drop-shadow(0 0 20px rgba(255, 45, 85, 0.8));
+                    }
+                    
+                    @keyframes appleHoverPulse {
+                        0%, 100% {
+                            transform: scale(1.05);
+                            filter: brightness(1.2) drop-shadow(0 0 20px rgba(255, 45, 85, 0.8));
+                        }
+                        50% {
+                            transform: scale(1.08);
+                            filter: brightness(1.3) drop-shadow(0 0 25px rgba(255, 45, 85, 1));
+                        }
+                    }
+                    
+                    /* Apple 简化背景光晕效果 */
+                    .apple-music-link::before {
+                        content: '';
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        width: 100%;
+                        height: 100%;
+                        background: radial-gradient(circle, rgba(255, 45, 85, 0.1) 0%, transparent 70%);
+                        transform: translate(-50%, -50%);
+                        animation: appleGlow 3s ease-in-out infinite;
+                        z-index: -1;
+                        border-radius: 12px;
+                    }
+                    
+                    @keyframes appleGlow {
+                        0%, 100% {
+                            opacity: 0.3;
+                            transform: translate(-50%, -50%) scale(1);
+                        }
+                        50% {
+                            opacity: 0.6;
+                            transform: translate(-50%, -50%) scale(1.1);
+                        }
+                    }
+                    
+                    /* Deezer 特殊动效 */
+                    .deezer-link {
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    
+                    .deezer-icon {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 100%;
+                        height: 100%;
+                        padding: 0;
+                    }
+                    
+                    .deezer-icon-img {
+                        width: 100%;
+                        height: 50px;
+                        max-width: 120px;
+                        object-fit: contain;
+                        object-position: center;
+                        filter: brightness(0.9);
+                        transition: all 0.3s ease;
+                        animation: deezerPulse 2.2s ease-in-out infinite;
+                    }
+                    
+                    /* Deezer 脉冲动效 */
+                    @keyframes deezerPulse {
+                        0%, 100% {
+                            filter: brightness(0.9) drop-shadow(0 0 5px rgba(255, 92, 51, 0.3));
+                            transform: scale(1);
+                        }
+                        50% {
+                            filter: brightness(1.1) drop-shadow(0 0 15px rgba(255, 92, 51, 0.6));
+                            transform: scale(1.02);
+                        }
+                    }
+                    
+                    /* 悬停时的加强效果 */
+                    .deezer-link:hover .deezer-icon-img {
+                        animation: deezerHoverPulse 1.1s ease-in-out infinite;
+                        filter: brightness(1.2) drop-shadow(0 0 20px rgba(255, 92, 51, 0.8));
+                    }
+                    
+                    @keyframes deezerHoverPulse {
+                        0%, 100% {
+                            transform: scale(1.05);
+                            filter: brightness(1.2) drop-shadow(0 0 20px rgba(255, 92, 51, 0.8));
+                        }
+                        50% {
+                            transform: scale(1.08);
+                            filter: brightness(1.3) drop-shadow(0 0 25px rgba(255, 92, 51, 1));
+                        }
+                    }
+                    
+                    /* 背景光晕效果 */
+                    .deezer-link::before {
+                        content: '';
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        width: 100%;
+                        height: 100%;
+                        background: radial-gradient(circle, rgba(255, 92, 51, 0.1) 0%, transparent 70%);
+                        transform: translate(-50%, -50%);
+                        animation: deezerGlow 3.2s ease-in-out infinite;
+                        z-index: -1;
+                        border-radius: 12px;
+                    }
+                    
+                    @keyframes deezerGlow {
+                        0%, 100% {
+                            opacity: 0.3;
+                            transform: translate(-50%, -50%) scale(1);
+                        }
+                        50% {
+                            opacity: 0.6;
+                            transform: translate(-50%, -50%) scale(1.1);
+                        }
+                    }
+                    
+                    /* Tidal 特殊动效 */
+                    .tidal-link {
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    
+                    .tidal-icon {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 100%;
+                        height: 100%;
+                        padding: 0;
+                    }
+                    
+                    .tidal-icon-img {
+                        width: 100%;
+                        height: 50px;
+                        max-width: 120px;
+                        object-fit: contain;
+                        object-position: center;
+                        filter: brightness(0.9);
+                        transition: all 0.3s ease;
+                        animation: tidalPulse 2.8s ease-in-out infinite;
+                    }
+                    
+                    /* Tidal 脉冲动效 */
+                    @keyframes tidalPulse {
+                        0%, 100% {
+                            filter: brightness(0.9) drop-shadow(0 0 5px rgba(0, 255, 255, 0.3));
+                            transform: scale(1);
+                        }
+                        50% {
+                            filter: brightness(1.1) drop-shadow(0 0 15px rgba(0, 255, 255, 0.6));
+                            transform: scale(1.02);
+                        }
+                    }
+                    
+                    /* 悬停时的加强效果 */
+                    .tidal-link:hover .tidal-icon-img {
+                        animation: tidalHoverPulse 1.3s ease-in-out infinite;
+                        filter: brightness(1.2) drop-shadow(0 0 20px rgba(0, 255, 255, 0.8));
+                    }
+                    
+                    @keyframes tidalHoverPulse {
+                        0%, 100% {
+                            transform: scale(1.05);
+                            filter: brightness(1.2) drop-shadow(0 0 20px rgba(0, 255, 255, 0.8));
+                        }
+                        50% {
+                            transform: scale(1.08);
+                            filter: brightness(1.3) drop-shadow(0 0 25px rgba(0, 255, 255, 1));
+                        }
+                    }
+                    
+                    /* 背景光晕效果 */
+                    .tidal-link::before {
+                        content: '';
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        width: 100%;
+                        height: 100%;
+                        background: radial-gradient(circle, rgba(0, 255, 255, 0.1) 0%, transparent 70%);
+                        transform: translate(-50%, -50%);
+                        animation: tidalGlow 3.8s ease-in-out infinite;
+                        z-index: -1;
+                        border-radius: 12px;
+                    }
+                    
+                    @keyframes tidalGlow {
+                        0%, 100% {
+                            opacity: 0.3;
+                            transform: translate(-50%, -50%) scale(1);
+                        }
+                        50% {
+                            opacity: 0.6;
+                            transform: translate(-50%, -50%) scale(1.1);
+                        }
+                    }
+                    
+                    /* iTunes 特殊动效 */
+                    .itunes-link {
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    
+                    .itunes-icon {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 100%;
+                        height: 100%;
+                        padding: 0;
+                    }
+                    
+                    .itunes-icon-img {
+                        width: 100%;
+                        height: 50px;
+                        max-width: 120px;
+                        object-fit: contain;
+                        object-position: center;
+                        filter: brightness(0.9);
+                        transition: all 0.3s ease;
+                        animation: itunesPulse 2.6s ease-in-out infinite;
+                    }
+                    
+                    /* iTunes 脉冲动效 */
+                    @keyframes itunesPulse {
+                        0%, 100% {
+                            filter: brightness(0.9) drop-shadow(0 0 5px rgba(100, 149, 237, 0.3));
+                            transform: scale(1);
+                        }
+                        50% {
+                            filter: brightness(1.1) drop-shadow(0 0 15px rgba(100, 149, 237, 0.6));
+                            transform: scale(1.02);
+                        }
+                    }
+                    
+                    /* 悬停时的加强效果 */
+                    .itunes-link:hover .itunes-icon-img {
+                        animation: itunesHoverPulse 1.2s ease-in-out infinite;
+                        filter: brightness(1.2) drop-shadow(0 0 20px rgba(100, 149, 237, 0.8));
+                    }
+                    
+                    @keyframes itunesHoverPulse {
+                        0%, 100% {
+                            transform: scale(1.05);
+                            filter: brightness(1.2) drop-shadow(0 0 20px rgba(100, 149, 237, 0.8));
+                        }
+                        50% {
+                            transform: scale(1.08);
+                            filter: brightness(1.3) drop-shadow(0 0 25px rgba(100, 149, 237, 1));
+                        }
+                    }
+                    
+                    /* 背景光晕效果 */
+                    .itunes-link::before {
+                        content: '';
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        width: 100%;
+                        height: 100%;
+                        background: radial-gradient(circle, rgba(100, 149, 237, 0.1) 0%, transparent 70%);
+                        transform: translate(-50%, -50%);
+                        animation: itunesGlow 3.6s ease-in-out infinite;
+                        z-index: -1;
+                        border-radius: 12px;
+                    }
+                    
+                    @keyframes itunesGlow {
+                        0%, 100% {
+                            opacity: 0.3;
+                            transform: translate(-50%, -50%) scale(1);
+                        }
+                        50% {
+                            opacity: 0.6;
+                            transform: translate(-50%, -50%) scale(1.1);
+                        }
                     }
                     .link-service {
                         font-weight: 600;
