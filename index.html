@@ -3457,10 +3457,9 @@
                     
                     if (musicBrainzUrl) {
                         dialogContent += `
-                            <li class="column-item">
-                                <span class="link-service">MusicBrainz</span>
+                            <li class="column-item icon-link">
                                 <a href="#" class="link-url" data-url="${musicBrainzUrl}">
-                                    ${musicBrainzUrl}
+                                    <img src="https://static.metabrainz.org/MB/header-logo-1f7dc2a.svg" alt="MusicBrainz" class="link-icon" />
                                 </a>
                             </li>
                         `;
@@ -3468,10 +3467,9 @@
                     
                     if (listenBrainzUrl) {
                         dialogContent += `
-                            <li class="column-item">
-                                <span class="link-service">ListenBrainz</span>
+                            <li class="column-item icon-link">
                                 <a href="#" class="link-url" data-url="${listenBrainzUrl}">
-                                    ${listenBrainzUrl}
+                                    <img src="https://listenbrainz.org/static/img/listenbrainz-logo.svg" alt="ListenBrainz" class="link-icon" />
                                 </a>
                             </li>
                         `;
@@ -3641,6 +3639,7 @@
                         display: flex;
                         gap: 10px;
                         margin-bottom: 10px;
+                        min-height: 80px;
                     }
                     .column-item {
                         flex: 1;
@@ -3652,11 +3651,45 @@
                         transition: all 0.2s ease;
                         cursor: pointer;
                         list-style: none;
+                        min-height: 80px;
+                        align-items: center;
+                        justify-content: center;
                     }
                     .column-item:hover {
                         background-color: rgba(255, 255, 255, 0.1);
                         transform: translateY(-2px);
                         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                    }
+                    
+                    /* 图标链接样式 */
+                    .icon-link {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 100%;
+                        height: 100%;
+                        padding: 0;
+                    }
+                    .icon-link .link-url {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 100%;
+                        height: 100%;
+                        padding: 0;
+                    }
+                    .link-icon {
+                        width: 100%;
+                        height: 50px;
+                        max-width: 120px;
+                        object-fit: contain;
+                        object-position: center;
+                        filter: brightness(0.9);
+                        transition: all 0.2s ease;
+                    }
+                    .icon-link:hover .link-icon {
+                        filter: brightness(1.1);
+                        transform: scale(1.05);
                     }
                     .link-service {
                         font-weight: 600;
@@ -3744,7 +3777,22 @@
                     
                     const link = item.querySelector('.link-url');
                     const url = link ? link.getAttribute('data-url') : null;
-                    const serviceName = item.querySelector('.link-service').textContent;
+                    
+                    // 获取服务名称
+                    let serviceName;
+                    const serviceSpan = item.querySelector('.link-service');
+                    if (serviceSpan) {
+                        serviceName = serviceSpan.textContent;
+                    } else {
+                        // 对于图标链接，根据URL判断服务名称
+                        if (url && url.includes('musicbrainz.org')) {
+                            serviceName = 'MusicBrainz';
+                        } else if (url && url.includes('listenbrainz.org')) {
+                            serviceName = 'ListenBrainz';
+                        } else {
+                            serviceName = 'Unknown Service';
+                        }
+                    }
                     
                     // 添加点击效果
                     item.addEventListener('mousedown', () => {
