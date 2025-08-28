@@ -475,6 +475,22 @@
                     rowDrop: 12.5
                 };
                 
+                // 3D展示台相关属性
+                this.showcaseScene = null;
+                this.showcaseCamera = null;
+                this.showcaseRenderer = null;
+                this.showcaseCover = null;
+                this.showcaseStand = null;
+                this.showcaseLights = [];
+                this.showcaseAnimationId = null;
+                this.mousePosition = { x: 0, y: 0 };
+                this.showcaseActive = false;
+                
+                // 全屏鼠标追踪相关属性
+                this.showcaseMouseMoveHandler = null;
+                this.showcaseMouseIdleHandler = null;
+                this.mouseIdleTimer = null;
+                
                 // 从本地存储加载设置
                 this.loadSettings();
 
@@ -1316,6 +1332,7 @@
                 return `https://www.google.com/search?q=${cleanName}+stream+online+listen`;
             }
 
+            // 初始化主场景的Three.js
             initThreeJS() {
                 // 启用Three.js缓存，减少重复解码与上传
                 THREE.Cache.enabled = true;
@@ -1365,6 +1382,512 @@
                 
                 // 更新场景背景颜色 - 使用保存的颜色或默认颜色
                 this.updateBackgroundColor(this.savedBackgroundColor || '#000000');
+            }
+            
+            // 初始化3D展示台场景
+            initShowcaseScene() {
+                // 创建展示台场景
+                this.showcaseScene = new THREE.Scene();
+                // 设置为透明背景，让封面悬浮在底层上
+                this.showcaseScene.background = null;
+                
+                // 设置展示台相机
+                const canvas = document.getElementById('album-showcase-canvas');
+                const aspect = canvas.clientWidth / canvas.clientHeight;
+                this.showcaseCamera = new THREE.PerspectiveCamera(50, aspect, 0.1, 100);
+                this.showcaseCamera.position.set(0, 0, 6); // 将相机放在Z轴上，与封面在同一水平线
+                this.showcaseCamera.lookAt(0, 0, 0); // 直接看向场景中心
+                
+                // 创建展示台渲染器
+                this.showcaseRenderer = new THREE.WebGLRenderer({ 
+                    canvas: canvas,
+                    antialias: true, 
+                    alpha: true,
+                    powerPreference: 'high-performance'
+                });
+                this.showcaseRenderer.setSize(canvas.clientWidth, canvas.clientHeight);
+                this.showcaseRenderer.shadowMap.enabled = true;
+                this.showcaseRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.showcaseRenderer.outputEncoding = THREE.sRGBEncoding;
+                // 启用透明度支持
+                this.showcaseRenderer.setClearColor(0x000000, 0);
+                
+                console.log('3D展示台场景初始化完成（透明背景）');
+            }
+            
+            // 创建展示台几何体和材质（已删除底座）
+            createShowcaseStand() {
+                // 不再创建底座，保留函数以避免调用错误
+                console.log('展示台初始化完成（无底座）');
+            }
+            
+            // 创建专辑封面3D展示网格
+            createShowcaseCover(albumPath) {
+                // 清理旧的封面（如果存在）
+                if (this.showcaseCover) {
+                    this.showcaseScene.remove(this.showcaseCover);
+                    if (this.showcaseCover.material.map) {
+                        this.showcaseCover.material.map.dispose();
+                    }
+                    this.showcaseCover.material.dispose();
+                    this.showcaseCover.geometry.dispose();
+                }
+                
+                // 创建封面几何体（正方形平面，放大尺寸）
+                const coverGeometry = new THREE.PlaneGeometry(3.5, 3.5);
+                
+                // 创建材质（初始为透明，等待纹理加载）
+                const coverMaterial = new THREE.MeshPhongMaterial({ 
+                    transparent: true,
+                    opacity: 0,
+                    side: THREE.DoubleSide,
+                    shininess: 10
+                });
+                
+                // 创建封面网格（调整位置使其居中显示）
+                this.showcaseCover = new THREE.Mesh(coverGeometry, coverMaterial);
+                this.showcaseCover.position.set(0, 0, 0); // 放在场景正中心
+                this.showcaseCover.rotation.x = 0; // 去除倾斜，保持垂直
+                this.showcaseCover.castShadow = true;
+                this.showcaseCover.receiveShadow = true;
+                
+                // 加载纹理
+                const textureLoader = new THREE.TextureLoader();
+                textureLoader.load(
+                    albumPath,
+                    (texture) => {
+                        // 纹理加载成功
+                        this.adjustTextureForShowcase(texture);
+                        this.showcaseCover.material.map = texture;
+                        this.showcaseCover.material.needsUpdate = true;
+                        
+                        // 渐显动画
+                        this.fadeInShowcaseCover();
+                        
+                        console.log('展示台封面纹理加载成功');
+                    },
+                    (progress) => {
+                        // 加载进度
+                        console.log('纹理加载进度:', Math.round((progress.loaded / progress.total) * 100) + '%');
+                    },
+                    (error) => {
+                        // 加载失败
+                        console.error('展示台封面纹理加载失败:', error);
+                        // 使用默认颜色
+                        this.showcaseCover.material.color.setHex(0x333333);
+                        this.fadeInShowcaseCover();
+                    }
+                );
+                
+                // 添加到场景
+                this.showcaseScene.add(this.showcaseCover);
+                
+                console.log('展示台封面创建完成');
+            }
+            
+            // 调整展示台纹理（保持方形比例）
+            adjustTextureForShowcase(texture) {
+                const image = texture.image;
+                const imageAspect = image.width / image.height;
+                
+                if (imageAspect !== 1) {
+                    if (imageAspect > 1) {
+                        // 宽图：裁切左右两边
+                        const cropWidth = image.height;
+                        const offsetX = (image.width - cropWidth) / 2 / image.width;
+                        texture.offset.x = offsetX;
+                        texture.repeat.x = cropWidth / image.width;
+                        texture.repeat.y = 1;
+                        texture.offset.y = 0;
+                    } else {
+                        // 高图：裁切上下两边
+                        const cropHeight = image.width;
+                        const offsetY = (image.height - cropHeight) / 2 / image.height;
+                        texture.offset.y = offsetY;
+                        texture.repeat.y = cropHeight / image.height;
+                        texture.repeat.x = 1;
+                        texture.offset.x = 0;
+                    }
+                }
+                
+                // 设置纹理过滤和环绕模式
+                texture.minFilter = THREE.LinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+                texture.wrapS = THREE.ClampToEdgeWrap;
+                texture.wrapT = THREE.ClampToEdgeWrap;
+            }
+            
+            // 展示台封面渐显动画
+            fadeInShowcaseCover() {
+                const duration = 800;
+                const startTime = Date.now();
+                
+                const animate = () => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    // 使用缓动函数
+                    const easeProgress = progress < 0.5 
+                        ? 2 * progress * progress 
+                        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                    
+                    this.showcaseCover.material.opacity = easeProgress;
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        this.showcaseCover.material.opacity = 1;
+                    }
+                };
+                
+                animate();
+            }
+            
+            // 设置展示台鼠标交互（全屏追踪）
+            setupShowcaseMouseInteraction() {
+                const canvas = document.getElementById('album-showcase-canvas');
+                if (!canvas) return;
+                
+                // 全屏鼠标移动事件（绑定到document以支持全屏追踪）
+                this.showcaseMouseMoveHandler = (event) => {
+                    if (!this.showcaseActive) return;
+                    
+                    // 基于整个窗口计算鼠标位置
+                    const x = event.clientX / window.innerWidth;
+                    const y = event.clientY / window.innerHeight;
+                    
+                    // 将鼠标位置转换为 -1 到 1 的范围，以屏幕中心为基准点
+                    this.mousePosition.x = (x - 0.5) * 2 * 1.2; // 适中的敏感度
+                    this.mousePosition.y = (y - 0.5) * 2 * 1.2; // 修正Y轴映射，移除反向
+                    
+                    // 限制范围避免过度旋转
+                    this.mousePosition.x = Math.max(-1.2, Math.min(1.2, this.mousePosition.x));
+                    this.mousePosition.y = Math.max(-1.2, Math.min(1.2, this.mousePosition.y));
+                };
+                
+                // 绑定全屏鼠标移动事件
+                document.addEventListener('mousemove', this.showcaseMouseMoveHandler);
+                
+                // 鼠标静止检测（当鼠标长时间不动时复位）
+                this.mouseIdleTimer = null;
+                this.showcaseMouseIdleHandler = () => {
+                    if (this.mouseIdleTimer) {
+                        clearTimeout(this.mouseIdleTimer);
+                    }
+                    this.mouseIdleTimer = setTimeout(() => {
+                        this.resetShowcasePosition();
+                    }, 3000); // 3秒后复位
+                };
+                
+                document.addEventListener('mousemove', this.showcaseMouseIdleHandler);
+                
+                console.log('展示台全屏鼠标交互设置完成');
+            }
+            
+            // 更新展示台封面位置和旋转（根据鼠标位置）
+            updateShowcaseCoverTransform() {
+                if (!this.showcaseCover || !this.showcaseActive) return;
+                
+                // 计算目标旋转角度（限制旋转幅度）
+                const maxRotation = Math.PI * 0.1; // 最大 18 度
+                const targetRotationY = this.mousePosition.x * maxRotation;
+                const targetRotationX = -this.mousePosition.y * maxRotation * 0.5; // 修正Y轴方向映射
+                
+                // 计算目标位置（轻微位移）
+                const maxOffset = 0.2;
+                const targetX = this.mousePosition.x * maxOffset;
+                const targetZ = this.mousePosition.y * maxOffset * 0.3;
+                
+                // 平滑过渡动画
+                const lerpFactor = 0.1;
+                
+                // 更新旋转
+                this.showcaseCover.rotation.y += (targetRotationY - this.showcaseCover.rotation.y) * lerpFactor;
+                const baseRotationX = 0; // 移除基础倾斜角度
+                this.showcaseCover.rotation.x += ((baseRotationX + targetRotationX) - this.showcaseCover.rotation.x) * lerpFactor;
+                
+                // 更新位置
+                this.showcaseCover.position.x += (targetX - this.showcaseCover.position.x) * lerpFactor;
+                this.showcaseCover.position.z += (targetZ - this.showcaseCover.position.z) * lerpFactor;
+            }
+            
+            // 重置展示台位置
+            resetShowcasePosition() {
+                this.mousePosition = { x: 0, y: 0 };
+                // 强制重置所有旋转轴为0，确保封面在鼠标居中时完全水平
+                if (this.showcaseCover) {
+                    this.showcaseCover.rotation.x = 0;
+                    this.showcaseCover.rotation.y = 0;
+                    this.showcaseCover.rotation.z = 0;
+                }
+                console.log('重置展示台位置和旋转');
+            }
+            
+            // 设置展示台光照系统
+            setupShowcaseLights() {
+                // 清理旧的灯光
+                this.showcaseLights.forEach(light => {
+                    this.showcaseScene.remove(light);
+                });
+                this.showcaseLights = [];
+                
+                // 主要定向光源（从上方照射）- 降低强度，使用暖白色
+                const mainLight = new THREE.DirectionalLight(0xffffff, 1);
+                mainLight.position.set(3, 8, 5);
+                mainLight.target.position.set(0, 0, 0);
+                mainLight.castShadow = true;
+                
+                // 设置阴影参数
+                mainLight.shadow.mapSize.width = 2048;
+                mainLight.shadow.mapSize.height = 2048;
+                mainLight.shadow.camera.near = 0.5;
+                mainLight.shadow.camera.far = 50;
+                mainLight.shadow.camera.left = -10;
+                mainLight.shadow.camera.right = 10;
+                mainLight.shadow.camera.top = 10;
+                mainLight.shadow.camera.bottom = -10;
+                mainLight.shadow.bias = -0.0001;
+                
+                this.showcaseScene.add(mainLight);
+                this.showcaseScene.add(mainLight.target);
+                this.showcaseLights.push(mainLight);
+                
+                // 辅助定向光（从右侧照射，补充光照）- 降低强度，使用柔和蓝色
+                const sideLight = new THREE.DirectionalLight(0x87ceeb, 0.3);
+                sideLight.position.set(-5, 4, 3);
+                sideLight.target.position.set(0, 0, 0);
+                
+                this.showcaseScene.add(sideLight);
+                this.showcaseScene.add(sideLight.target);
+                this.showcaseLights.push(sideLight);
+                
+                // 环境光（提供基础照明）- 降低强度
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.25);
+                this.showcaseScene.add(ambientLight);
+                this.showcaseLights.push(ambientLight);
+                
+                // 点光源（模拟聚光灯效果）- 降低强度，使用更柔和的暖色
+                const spotLight = new THREE.SpotLight(0xfff5ee, 0.4);
+                spotLight.position.set(0, 6, 4);
+                spotLight.target.position.set(0, 0, 0);
+                spotLight.angle = Math.PI * 0.3;
+                spotLight.penumbra = 0.3;
+                spotLight.decay = 2;
+                spotLight.distance = 20;
+                spotLight.castShadow = true;
+                
+                // 设置聚光灯阴影参数
+                spotLight.shadow.mapSize.width = 1024;
+                spotLight.shadow.mapSize.height = 1024;
+                spotLight.shadow.camera.near = 0.5;
+                spotLight.shadow.camera.far = 20;
+                spotLight.shadow.camera.fov = 50;
+                
+                this.showcaseScene.add(spotLight);
+                this.showcaseScene.add(spotLight.target);
+                this.showcaseLights.push(spotLight);
+                
+                console.log('展示台光照系统设置完成');
+            }
+            
+            // 展示台动画循环
+            startShowcaseAnimation() {
+                if (this.showcaseAnimationId) {
+                    cancelAnimationFrame(this.showcaseAnimationId);
+                }
+                
+                const animate = () => {
+                    if (!this.showcaseActive) return;
+                    
+                    // 更新鼠标跟随交互
+                    this.updateShowcaseCoverTransform();
+                    
+                    // 添加微妙的悬浮动画
+                    if (this.showcaseCover) {
+                        const time = Date.now() * 0.001;
+                        const floatingOffset = Math.sin(time * 1.5) * 0.03;
+                        this.showcaseCover.position.y = 0 + floatingOffset; // 基础Y轴位置调整为0
+                        
+                        // 轻微的旋转动画（在鼠标不活动时）
+                        if (Math.abs(this.mousePosition.x) < 0.01 && Math.abs(this.mousePosition.y) < 0.01) {
+                            const rotationOffset = Math.sin(time * 0.8) * 0.02;
+                            this.showcaseCover.rotation.y = rotationOffset;
+                        }
+                    }
+                    
+                    // 渲染场景
+                    this.showcaseRenderer.render(this.showcaseScene, this.showcaseCamera);
+                    
+                    this.showcaseAnimationId = requestAnimationFrame(animate);
+                };
+                
+                animate();
+                console.log('展示台动画循环启动');
+            }
+            
+            // 停止展示台动画
+            stopShowcaseAnimation() {
+                if (this.showcaseAnimationId) {
+                    cancelAnimationFrame(this.showcaseAnimationId);
+                    this.showcaseAnimationId = null;
+                }
+                this.showcaseActive = false;
+                console.log('展示台动画停止');
+            }
+            
+            // 初始化3D展示台（完整流程）
+            initializeShowcase(albumPath) {
+                try {
+                    console.log('开始初始化3D展示台:', albumPath);
+                    
+                    // 检查Canvas元素是否存在
+                    const canvas = document.getElementById('album-showcase-canvas');
+                    if (!canvas) {
+                        console.error('找不到展示台Canvas元素');
+                        return;
+                    }
+                    
+                    // 初始化场景
+                    this.initShowcaseScene();
+                    
+                    // 创建展示台
+                    this.createShowcaseStand();
+                    
+                    // 设置光照
+                    this.setupShowcaseLights();
+                    
+                    // 创建封面（如果有专辑路径）
+                    if (albumPath) {
+                        this.createShowcaseCover(albumPath);
+                    }
+                    
+                    // 设置鼠标交互
+                    this.setupShowcaseMouseInteraction();
+                    
+                    // 启动动画循环
+                    this.showcaseActive = true;
+                    this.startShowcaseAnimation();
+                    
+                    console.log('3D展示台初始化完成');
+                    
+                } catch (error) {
+                    console.error('3D展示台初始化失败:', error);
+                    // 失败时清理资源
+                    this.cleanupShowcase();
+                }
+            }
+            
+            // 清理展示台资源
+            cleanupShowcase() {
+                try {
+                    console.log('开始清理展示台资源');
+                    
+                    // 停止动画循环
+                    this.stopShowcaseAnimation();
+                    
+                    // 清理全屏鼠标事件监听器
+                    if (this.showcaseMouseMoveHandler) {
+                        document.removeEventListener('mousemove', this.showcaseMouseMoveHandler);
+                        this.showcaseMouseMoveHandler = null;
+                    }
+                    
+                    if (this.showcaseMouseIdleHandler) {
+                        document.removeEventListener('mousemove', this.showcaseMouseIdleHandler);
+                        this.showcaseMouseIdleHandler = null;
+                    }
+                    
+                    // 清理鼠标静止定时器
+                    if (this.mouseIdleTimer) {
+                        clearTimeout(this.mouseIdleTimer);
+                        this.mouseIdleTimer = null;
+                    }
+                    
+                    // 清理封面资源
+                    if (this.showcaseCover) {
+                        // 清理纹理
+                        if (this.showcaseCover.material.map) {
+                            this.showcaseCover.material.map.dispose();
+                        }
+                        // 清理材质
+                        this.showcaseCover.material.dispose();
+                        // 清理几何体
+                        this.showcaseCover.geometry.dispose();
+                        // 从场景中移除
+                        if (this.showcaseScene && this.showcaseCover.parent) {
+                            this.showcaseScene.remove(this.showcaseCover);
+                        }
+                        this.showcaseCover = null;
+                    }
+                    
+                    // 清理展示台资源
+                    if (this.showcaseStand) {
+                        this.showcaseStand.children.forEach(child => {
+                            if (child.geometry) child.geometry.dispose();
+                            if (child.material) child.material.dispose();
+                        });
+                        if (this.showcaseScene) {
+                            this.showcaseScene.remove(this.showcaseStand);
+                        }
+                        this.showcaseStand = null;
+                    }
+                    
+                    // 清理灯光资源
+                    this.showcaseLights.forEach(light => {
+                        if (this.showcaseScene) {
+                            this.showcaseScene.remove(light);
+                            // 清理定向光的target
+                            if (light.target && light.target.parent) {
+                                this.showcaseScene.remove(light.target);
+                            }
+                        }
+                    });
+                    this.showcaseLights = [];
+                    
+                    // 清理渲染器
+                    if (this.showcaseRenderer) {
+                        this.showcaseRenderer.dispose();
+                        this.showcaseRenderer = null;
+                    }
+                    
+                    // 清理场景
+                    if (this.showcaseScene) {
+                        // 递归清理场景中的所有对象
+                        this.showcaseScene.traverse((object) => {
+                            if (object.geometry) {
+                                object.geometry.dispose();
+                            }
+                            if (object.material) {
+                                if (Array.isArray(object.material)) {
+                                    object.material.forEach(material => material.dispose());
+                                } else {
+                                    object.material.dispose();
+                                }
+                            }
+                        });
+                        this.showcaseScene = null;
+                    }
+                    
+                    // 重置相机
+                    this.showcaseCamera = null;
+                    
+                    // 重置状态
+                    this.showcaseActive = false;
+                    this.mousePosition = { x: 0, y: 0 };
+                    
+                    console.log('展示台资源清理完成');
+                    
+                } catch (error) {
+                    console.error('清理展示台资源时出错:', error);
+                    // 强制重置状态
+                    this.showcaseActive = false;
+                    this.showcaseScene = null;
+                    this.showcaseCamera = null;
+                    this.showcaseRenderer = null;
+                    this.showcaseCover = null;
+                    this.showcaseStand = null;
+                    this.showcaseLights = [];
+                    this.mousePosition = { x: 0, y: 0 };
+                }
             }
 
             createGrid() {
@@ -3278,8 +3801,8 @@
                         // 获取MusicBrainz ID
                         const mbid = this.extractMusicBrainzId(url);
                         if (mbid) {
-                            // 获取并显示外部链接
-                            this.openExternalLinks(mbid);
+                            // 获取并显示外部链接，传递专辑路径
+                            this.openExternalLinks(mbid, albumPath);
                         } else {
                             // 如果无法提取MBID，则只打开原始URL
                             window.open(url, '_blank');
@@ -3301,10 +3824,14 @@
             }
             
             // 获取外部链接（Spotify和YouTube Music）
-            openExternalLinks(mbid) {
+            openExternalLinks(mbid, albumPath = null) {
                 // 检查缓存中是否已有该MBID的外部链接数据
                 if (this.externalLinksCache.has(mbid)) {
                     const cachedData = this.externalLinksCache.get(mbid);
+                    // 更新缓存数据中的专辑路径
+                    if (albumPath) {
+                        cachedData.albumPath = albumPath;
+                    }
                     this.showLinksDialog(cachedData);
                     return;
                 }
@@ -3404,6 +3931,7 @@
                         // 缓存结果
                         const linkData = { 
                             albumTitle,
+                            albumPath: albumPath, // 添加专辑路径
                             musicBrainzUrl, 
                             listenBrainzUrl,
                             spotifyUrl, 
@@ -3449,6 +3977,8 @@
                 // 移除可能已存在的对话框
                 const existingDialog = document.getElementById('links-dialog');
                 if (existingDialog) {
+                    // 清理旧的3D展示台
+                    this.cleanupShowcase();
                     existingDialog.remove();
                 }
                 
@@ -3458,10 +3988,15 @@
                 dialog.className = 'links-dialog';
                 
                 // 创建对话框内容
+                //   <h3>${this.texts.externalLinksFor} "${albumTitle}"</h3>
                 let dialogContent = `
                     <div class="dialog-header">
-                        <h3>${this.texts.externalLinksFor} "${albumTitle}"</h3>
+                      
+                        <h3>${albumTitle}</h3>
                         <button class="close-button">&times;</button>
+                    </div>
+                    <div class="album-showcase-container">
+                        <canvas id="album-showcase-canvas"></canvas>
                     </div>
                     <div class="dialog-content">
                         <ul class="links-list">
@@ -3628,6 +4163,26 @@
                     }
                     .close-button:hover {
                         background: rgba(255, 255, 255, 0.2);
+                    }
+                    
+                    /* 3D展示台容器样式 - 透明悬浮效果 */
+                    .album-showcase-container {
+                        width: 100%;
+                        height: 300px;
+                        position: relative;
+                        background: transparent;
+                        border-radius: 0;
+                        margin-bottom: 20px;
+                        overflow: hidden;
+                        border: none;
+                        box-shadow: none;
+                    }
+                    
+                    #album-showcase-canvas {
+                        width: 100% !important;
+                        height: 100% !important;
+                        display: block;
+                        border-radius: 0;
                     }
                     .links-list {
                         list-style: none;
@@ -4265,9 +4820,15 @@
                 document.body.appendChild(backdrop);
                 document.body.appendChild(dialog);
                 
+                // 初始化3D展示台（在DOM添加后）
+                setTimeout(() => {
+                    this.initializeShowcase(linkData.albumPath || linkData.albumTitle);
+                }, 100);
+                
                 // 添加点击事件处理
                 const closeButton = dialog.querySelector('.close-button');
                 closeButton.addEventListener('click', () => {
+                    this.cleanupShowcase();
                     dialog.remove();
                     backdrop.remove();
                     style.remove();
@@ -4275,6 +4836,7 @@
                 
                 // 点击背景关闭对话框
                 backdrop.addEventListener('click', () => {
+                    this.cleanupShowcase();
                     dialog.remove();
                     backdrop.remove();
                     style.remove();
