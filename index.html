@@ -1406,9 +1406,10 @@
                     powerPreference: 'high-performance'
                 });
                 this.showcaseRenderer.setSize(canvas.clientWidth, canvas.clientHeight);
-                this.showcaseRenderer.shadowMap.enabled = true;
-                this.showcaseRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
-                this.showcaseRenderer.outputEncoding = THREE.sRGBEncoding;
+                // 纯净模式不需要阴影
+                this.showcaseRenderer.shadowMap.enabled = false;
+                // 使用最原始的颜色显示方式，不进行任何颜色空间转换
+                // this.showcaseRenderer.outputEncoding = THREE.sRGBEncoding;
                 // 启用透明度支持
                 this.showcaseRenderer.setClearColor(0x000000, 0);
                 
@@ -1436,20 +1437,17 @@
                 // 创建封面几何体（正方形平面，放大尺寸）
                 const coverGeometry = new THREE.PlaneGeometry(3.5, 3.5);
                 
-                // 创建材质（初始为透明，等待纹理加载）
-                const coverMaterial = new THREE.MeshPhongMaterial({ 
+                // 创建材质（初始为透明，等待纹理加载）- 使用基础材质避免光照影响
+                const coverMaterial = new THREE.MeshBasicMaterial({ 
                     transparent: true,
                     opacity: 0,
-                    side: THREE.DoubleSide,
-                    shininess: 10
+                    side: THREE.DoubleSide
                 });
                 
-                // 创建封面网格（调整位置使其居中显示）
+                // 创建封面网格（调整位置使其居中显示）- 纯净模式无阴影
                 this.showcaseCover = new THREE.Mesh(coverGeometry, coverMaterial);
                 this.showcaseCover.position.set(0, 0, 0); // 放在场景正中心
                 this.showcaseCover.rotation.x = 0; // 去除倾斜，保持垂直
-                this.showcaseCover.castShadow = true;
-                this.showcaseCover.receiveShadow = true;
                 
                 // 加载纹理
                 const textureLoader = new THREE.TextureLoader();
@@ -1623,7 +1621,7 @@
                 console.log('重置展示台位置和旋转');
             }
             
-            // 设置展示台光照系统
+            // 设置展示台光照系统（完全移除，无任何光照效果）
             setupShowcaseLights() {
                 // 清理旧的灯光
                 this.showcaseLights.forEach(light => {
@@ -1631,63 +1629,8 @@
                 });
                 this.showcaseLights = [];
                 
-                // 主要定向光源（从上方照射）- 降低强度，使用暖白色
-                const mainLight = new THREE.DirectionalLight(0xffffff, 1);
-                mainLight.position.set(3, 8, 5);
-                mainLight.target.position.set(0, 0, 0);
-                mainLight.castShadow = true;
-                
-                // 设置阴影参数
-                mainLight.shadow.mapSize.width = 2048;
-                mainLight.shadow.mapSize.height = 2048;
-                mainLight.shadow.camera.near = 0.5;
-                mainLight.shadow.camera.far = 50;
-                mainLight.shadow.camera.left = -10;
-                mainLight.shadow.camera.right = 10;
-                mainLight.shadow.camera.top = 10;
-                mainLight.shadow.camera.bottom = -10;
-                mainLight.shadow.bias = -0.0001;
-                
-                this.showcaseScene.add(mainLight);
-                this.showcaseScene.add(mainLight.target);
-                this.showcaseLights.push(mainLight);
-                
-                // 辅助定向光（从右侧照射，补充光照）- 降低强度，使用柔和蓝色
-                const sideLight = new THREE.DirectionalLight(0x87ceeb, 0.3);
-                sideLight.position.set(-5, 4, 3);
-                sideLight.target.position.set(0, 0, 0);
-                
-                this.showcaseScene.add(sideLight);
-                this.showcaseScene.add(sideLight.target);
-                this.showcaseLights.push(sideLight);
-                
-                // 环境光（提供基础照明）- 降低强度
-                const ambientLight = new THREE.AmbientLight(0x404040, 0.25);
-                this.showcaseScene.add(ambientLight);
-                this.showcaseLights.push(ambientLight);
-                
-                // 点光源（模拟聚光灯效果）- 降低强度，使用更柔和的暖色
-                const spotLight = new THREE.SpotLight(0xfff5ee, 0.4);
-                spotLight.position.set(0, 6, 4);
-                spotLight.target.position.set(0, 0, 0);
-                spotLight.angle = Math.PI * 0.3;
-                spotLight.penumbra = 0.3;
-                spotLight.decay = 2;
-                spotLight.distance = 20;
-                spotLight.castShadow = true;
-                
-                // 设置聚光灯阴影参数
-                spotLight.shadow.mapSize.width = 1024;
-                spotLight.shadow.mapSize.height = 1024;
-                spotLight.shadow.camera.near = 0.5;
-                spotLight.shadow.camera.far = 20;
-                spotLight.shadow.camera.fov = 50;
-                
-                this.showcaseScene.add(spotLight);
-                this.showcaseScene.add(spotLight.target);
-                this.showcaseLights.push(spotLight);
-                
-                console.log('展示台光照系统设置完成');
+                // 不添加任何灯光，让封面纯净显示
+                console.log('展示台无光照系统设置完成（纯净模式）');
             }
             
             // 展示台动画循环
