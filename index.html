@@ -1591,7 +1591,7 @@
                 // 计算目标旋转角度（限制旋转幅度）
                 const maxRotation = Math.PI * 0.1; // 最大 18 度
                 const targetRotationY = this.mousePosition.x * maxRotation;
-                const targetRotationX = -this.mousePosition.y * maxRotation * 0.5; // 修正Y轴方向映射
+                const targetRotationX = this.mousePosition.y * maxRotation * 0.5; // Y轴追踪已颠倒
                 
                 // 计算目标位置（轻微位移）
                 const maxOffset = 0.2;
