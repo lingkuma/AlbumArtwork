@@ -1406,8 +1406,11 @@
                     powerPreference: 'high-performance'
                 });
                 this.showcaseRenderer.setSize(canvas.clientWidth, canvas.clientHeight);
-                // 纯净模式不需要阴影
-                this.showcaseRenderer.shadowMap.enabled = false;
+                
+                // 为展示台启用阴影系统
+                this.showcaseRenderer.shadowMap.enabled = true;
+                this.showcaseRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                
                 // 使用最原始的颜色显示方式，不进行任何颜色空间转换
                 // this.showcaseRenderer.outputEncoding = THREE.sRGBEncoding;
                 // 启用透明度支持
@@ -1437,17 +1440,25 @@
                 // 创建封面几何体（正方形平面，放大尺寸）
                 const coverGeometry = new THREE.PlaneGeometry(3.5, 3.5);
                 
-                // 创建材质（初始为透明，等待纹理加载）- 使用基础材质避免光照影响
-                const coverMaterial = new THREE.MeshBasicMaterial({ 
+                // 创建材质（初始为透明，等待纹理加载）- 使用标准材质实现印刷品反射
+                const coverMaterial = new THREE.MeshStandardMaterial({ 
                     transparent: true,
                     opacity: 0,
-                    side: THREE.DoubleSide
+                    side: THREE.DoubleSide,
+                    metalness: 0.0,        // 非金属材质，模拟纸质海报
+                    roughness: 0.85,       // 适度粗糙度，提供柔和亮面反射
+                    emissive: 0x000000,    // 无自发光
+                    envMapIntensity: 0.3   // 降低环境映射影响
                 });
                 
-                // 创建封面网格（调整位置使其居中显示）- 纯净模式无阴影
+                // 创建封面网格（调整位置使其居中显示）
                 this.showcaseCover = new THREE.Mesh(coverGeometry, coverMaterial);
                 this.showcaseCover.position.set(0, 0, 0); // 放在场景正中心
                 this.showcaseCover.rotation.x = 0; // 去除倾斜，保持垂直
+                
+                // 为展示台封面启用阴影
+                this.showcaseCover.castShadow = true;
+                this.showcaseCover.receiveShadow = true;
                 
                 // 加载纹理
                 const textureLoader = new THREE.TextureLoader();
@@ -1621,16 +1632,54 @@
                 console.log('重置展示台位置和旋转');
             }
             
-            // 设置展示台光照系统（完全移除，无任何光照效果）
+            // 设置展示台光照系统（专业四光源照明）
             setupShowcaseLights() {
                 // 清理旧的灯光
                 this.showcaseLights.forEach(light => {
                     this.showcaseScene.remove(light);
+                    if (light.target && light.target.parent) {
+                        this.showcaseScene.remove(light.target);
+                    }
                 });
                 this.showcaseLights = [];
                 
-                // 不添加任何灯光，让封面纯净显示
-                console.log('展示台无光照系统设置完成（纯净模式）');
+                // 1. 环境光 - 提供基础照明
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
+                this.showcaseLights.push(ambientLight);
+                this.showcaseScene.add(ambientLight);
+                
+                // 2. 主光源 - 提供主要亮面反射
+                const mainLight = new THREE.DirectionalLight(0xffffff, 0.9);
+                mainLight.position.set(4, 6, 3);
+                mainLight.target.position.set(0, 0, 0);
+                
+                // 配置主光源阴影
+                mainLight.castShadow = true;
+                mainLight.shadow.mapSize.width = 1024;
+                mainLight.shadow.mapSize.height = 1024;
+                mainLight.shadow.bias = -0.0005;
+                
+                this.showcaseLights.push(mainLight);
+                this.showcaseScene.add(mainLight);
+                this.showcaseScene.add(mainLight.target);
+                
+                // 3. 补充光 - 减少阴影对比度
+                const fillLight = new THREE.DirectionalLight(0xffffff, 0.25);
+                fillLight.position.set(-3, 2, 2);
+                fillLight.target.position.set(0, 0, 0);
+                this.showcaseLights.push(fillLight);
+                this.showcaseScene.add(fillLight);
+                this.showcaseScene.add(fillLight.target);
+                
+                // 4. 顶部软光 - 模拟天花板漫反射
+                const topLight = new THREE.DirectionalLight(0xffffff, 0.1);
+                topLight.position.set(0, 10, 0);
+                topLight.target.position.set(0, 0, 0);
+                this.showcaseLights.push(topLight);
+                this.showcaseScene.add(topLight);
+                this.showcaseScene.add(topLight.target);
+                
+                console.log('展示台专业光照系统设置完成（印刷品反射模式）');
             }
             
             // 展示台动画循环
