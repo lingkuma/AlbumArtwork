@@ -1599,7 +1599,7 @@
                     }
                     this.mouseIdleTimer = setTimeout(() => {
                         this.resetShowcasePosition();
-                    }, 3000); // 3秒后复位
+                    }, 60000); // 1分钟后复位
                 };
                 
                 document.addEventListener('mousemove', this.showcaseMouseIdleHandler);
@@ -3893,7 +3893,7 @@
                     clearTimeout(mouseTimer);
                     mouseTimer = setTimeout(() => {
                         document.body.style.cursor = 'none';
-                    }, 3000);
+                    }, 60000);
                 });
                 
                 // 设置按钮事件
