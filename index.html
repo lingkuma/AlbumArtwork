@@ -1573,7 +1573,9 @@
                     this.mousePosition.x = Math.max(-1.2, Math.min(1.2, this.mousePosition.x));
                     this.mousePosition.y = Math.max(-1.2, Math.min(1.2, this.mousePosition.y));
                     
-                    // 在鼠标移动时应用弹簧阻尼效果（支持上下反转）
+                    // 禁用弹簧阻尼效果，避免浮动
+                    // 移除所有物理系统的速度施加，确保封面只跟随鼠标位置
+                    /*
                     if (this.showcaseCover && this.showcaseCover.userData.physics) {
                         const physics = this.showcaseCover.userData.physics;
                         // 施加与鼠标移动方向相关的力，模拟弹簧反馈
@@ -1586,6 +1588,7 @@
                         physics.angularVelocity.y = -this.mousePosition.x * 0.08; // 增强绕Y轴旋转
                         physics.angularVelocity.z = (this.mousePosition.x - this.mousePosition.y) * 0.05; // 添加绕Z轴旋转
                     }
+                    */
                 };
                 
                 // 绑定全屏鼠标移动事件
@@ -1615,7 +1618,9 @@
                 const physics = this.showcaseCover.userData.physics;
                 const shakeParams = this.showcaseCover.userData.shakeParams;
                 
-                // 更新弹簧阻尼物理效果
+                // 禁用弹簧阻尼物理效果更新，避免浮动
+                // 完全移除物理系统更新，确保封面只跟随鼠标
+                /*
                 if (physics && (Math.abs(physics.velocity.x) > 0.001 || Math.abs(physics.velocity.y) > 0.001 || 
                     Math.abs(physics.angularVelocity.x) > 0.001 || Math.abs(physics.angularVelocity.y) > 0.001)) {
                     // 弹簧-阻尼系统更新
@@ -1661,6 +1666,7 @@
                         }
                     }
                 }
+                */
                 
                 // 计算目标旋转角度（针对透视效应调整上下旋转幅度）
                 const maxRotation = Math.PI * 0.15; // 旋转幅度到最大27度
@@ -1682,15 +1688,15 @@
                 // 上下旋转（X轴）- 同样使用平滑插值，保持一致性
                 this.showcaseCover.rotation.x += (targetRotationX - this.showcaseCover.rotation.x) * lerpFactor;
                 
-                // 添加弹簧旋转效果（与鼠标交互叠加）
-                this.showcaseCover.rotation.x += physics.rotation.x * 0.4; // X轴旋转效果
-                this.showcaseCover.rotation.y += physics.rotation.y * 0.3; // Y轴旋转效果
-                this.showcaseCover.rotation.z = physics.rotation.z * 0.2; // Z轴旋转效果
+                // 添加弹簧旋转效果（与鼠标交互叠加）- 减弱强度避免过度晃动
+                this.showcaseCover.rotation.x += physics.rotation.x * 0.00; // 减弱X轴旋转效果
+                this.showcaseCover.rotation.y += physics.rotation.y * 0.00; // 减弱Y轴旋转效果
+                this.showcaseCover.rotation.z = physics.rotation.z * 0.00; // 减弱Z轴旋转效果
                 
-                // 更新位置（结合鼠标交互和弹簧效果，支持上下反转）
-                this.showcaseCover.position.x = targetX + physics.position.x * 0.4; // 增强X轴位移效果
-                this.showcaseCover.position.y = targetY + physics.position.y * 0.4; // 添加Y轴位移控制并增强效果
-                this.showcaseCover.position.z = targetZ + physics.position.z * 0.4; // 增强Z轴位移效果
+                // 更新位置（结合鼠标交互和弹簧效果，支持上下反转）- 减弱强度避免过度晃动
+                this.showcaseCover.position.x = targetX + physics.position.x * 0.00; // 减弱X轴位移效果
+                this.showcaseCover.position.y = targetY + physics.position.y * 0.00; // 减弱Y轴位移控制
+                this.showcaseCover.position.z = targetZ + physics.position.z * 0.00; // 减弱Z轴位移效果
             }
             
             // 重置展示台位置
@@ -1784,7 +1790,9 @@
                     // 更新鼠标跟随交互
                     this.updateShowcaseCoverTransform();
                     
-                    // 添加微妙的悬浮动画和弹簧效果
+                    // 禁用悬浮动画和弹簧效果，避免浮动
+                    // 移除所有自动浮动和物理反馈，让封面完全跟随鼠标
+                    /*
                     if (this.showcaseCover) {
                         const time = Date.now() * 0.001;
                         const floatingOffset = Math.sin(time * 1.5) * 0.03;
@@ -1810,6 +1818,7 @@
                             this.showcaseCover.position.y = floatingOffset;
                         }
                     }
+                    */
                     
                     // 渲染场景
                     this.showcaseRenderer.render(this.showcaseScene, this.showcaseCamera);
@@ -1872,12 +1881,12 @@
                             shakeIntensity: 0
                         };
                         
-                        // 调整晃动参数，增强弹簧回弹效果和阻尼特性
+                        // 调整晃动参数，减弱弹簧回弹效果，增加阻尼稳定性
                         this.showcaseCover.userData.shakeParams = {
-                            springConstant: 4.0,    // 增加弹簧常数，使回弹更明显
-                            damping: 0.12,          // 减少阻尼系数，使晃动更持久
+                            springConstant: 2.0,    // 降低弹簧常数，减少回弹强度
+                            damping: 0.25,          // 增加阻尼系数，快速稳定
                             mass: 1.0,              // 质量保持不变
-                            maxShakeIntensity: 1.5  // 增加最大晃动强度
+                            maxShakeIntensity: 0.8  // 降低最大晃动强度
                         };
                     }
                     
