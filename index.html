@@ -4261,13 +4261,14 @@
                 })
                 .then(data => {
                     if (data && data.relations) {
-                        // 查找Spotify、YouTube Music、Apple Music、iTunes、Deezer、Tidal链接以及其他外部链接
+                        // 查找Spotify、YouTube Music、Apple Music、iTunes、Deezer、Tidal、163链接以及其他外部链接
                         let spotifyUrl = null;
                         let youtubeMusicUrl = null;
                         let appleMusicUrl = null;
                         let itunesUrl = null;
                         let deezerUrl = null;
                         let tidalUrl = null;
+                        let netease163Url = null;
                         let musicBrainzUrl = null;
                         let listenBrainzUrl = null;
                         let otherLinks = [];
@@ -4301,6 +4302,8 @@
                                         deezerUrl = url;
                                     } else if (url.includes('tidal.com')) {
                                         tidalUrl = url;
+                                    } else if (url.includes('music.163.com')) {
+                                        netease163Url = url;
                                     } else {
                                         // 其他流媒体链接
                                         otherLinks.push({
@@ -4330,6 +4333,7 @@
                             itunesUrl,
                             deezerUrl,
                             tidalUrl,
+                            netease163Url,
                             otherLinks
                         };
                         this.externalLinksCache.set(mbid, linkData);
@@ -4362,7 +4366,7 @@
             
             // 显示链接对话框
             showLinksDialog(linkData) {
-                const { albumTitle, musicBrainzUrl, listenBrainzUrl, spotifyUrl, youtubeMusicUrl, appleMusicUrl, itunesUrl, deezerUrl, tidalUrl, otherLinks } = linkData;
+                const { albumTitle, musicBrainzUrl, listenBrainzUrl, spotifyUrl, youtubeMusicUrl, appleMusicUrl, itunesUrl, deezerUrl, tidalUrl, netease163Url, otherLinks } = linkData;
                 
                 // 移除可能已存在的对话框
                 const existingDialog = document.getElementById('links-dialog');
@@ -4423,6 +4427,7 @@
                 // 音乐平台显示顺序配置（可自定义排序）
                 const platformOrder = [
                     { key: 'youtubeMusicUrl', name: 'YouTube Music', linkClass: 'youtube-music-link', iconClass: 'youtube-music-icon', iconUrl: 'https://music.youtube.com/img/favicon_144.png', iconImgClass: 'youtube-icon' },
+                    { key: 'netease163Url', name: '163', linkClass: 'netease163-link', iconClass: 'netease163-icon', iconUrl: 'https://s1.music.126.net/style/favicon.ico?v20180823', iconImgClass: 'netease163-icon-img' },
                     { key: 'spotifyUrl', name: 'Spotify', linkClass: 'spotify-link', iconClass: 'spotify-icon', iconUrl: 'https://open.spotifycdn.com/cdn/images/favicon.0f31d2ea.ico', iconImgClass: 'spotify-icon-img' },
                     { key: 'appleMusicUrl', name: 'Apple Music', linkClass: 'apple-music-link', iconClass: 'apple-music-icon', iconUrl: 'https://music.apple.com/assets/favicon/favicon-180.png', iconImgClass: 'apple-icon' },
                     { key: 'itunesUrl', name: 'iTunes', linkClass: 'itunes-link', iconClass: 'itunes-icon', iconUrl: 'https://www.apple.com/v/itunes/home/l/images/overview/itunes_logo__dwjkvx332d0m_large.png', iconImgClass: 'itunes-icon-img' },
@@ -4431,7 +4436,7 @@
                 ];
                 
                 // 按配置的顺序显示音乐平台
-                const platformLinks = { youtubeMusicUrl, spotifyUrl, appleMusicUrl, itunesUrl, deezerUrl, tidalUrl };
+                const platformLinks = { youtubeMusicUrl, netease163Url, spotifyUrl, appleMusicUrl, itunesUrl, deezerUrl, tidalUrl };
                 
                 for (const platform of platformOrder) {
                     const url = platformLinks[platform.key];
@@ -4461,7 +4466,7 @@
                 }
                 
                 // 如果没有找到任何链接
-                if (!musicBrainzUrl && !listenBrainzUrl && !spotifyUrl && !youtubeMusicUrl && !appleMusicUrl && !itunesUrl && !deezerUrl && !tidalUrl && (!otherLinks || otherLinks.length === 0)) {
+                if (!musicBrainzUrl && !listenBrainzUrl && !spotifyUrl && !youtubeMusicUrl && !appleMusicUrl && !itunesUrl && !deezerUrl && !tidalUrl && !netease163Url && (!otherLinks || otherLinks.length === 0)) {
                     dialogContent += `
                         <li class="no-links">
                             ${this.texts.noLinksFound}
@@ -4728,6 +4733,88 @@
                     }
                     
                     @keyframes youtubeGlow {
+                        0%, 100% {
+                            opacity: 0.3;
+                            transform: translate(-50%, -50%) scale(1);
+                        }
+                        50% {
+                            opacity: 0.6;
+                            transform: translate(-50%, -50%) scale(1.1);
+                        }
+                    }
+                    
+                    /* 网易云音乐163 特殊动效 - 仿照YouTube红色主题 */
+                    .netease163-link {
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    
+                    .netease163-icon {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 100%;
+                        height: 100%;
+                        padding: 0;
+                    }
+                    
+                    .netease163-icon-img {
+                        width: 100%;
+                        height: 50px;
+                        max-width: 120px;
+                        object-fit: contain;
+                        object-position: center;
+                        filter: brightness(0.9);
+                        transition: all 0.3s ease;
+                        animation: netease163Pulse 2s ease-in-out infinite;
+                    }
+                    
+                    /* 网易云音乐163 脉冲动效 */
+                    @keyframes netease163Pulse {
+                        0%, 100% {
+                            filter: brightness(0.9) drop-shadow(0 0 5px rgba(255, 0, 0, 0.3));
+                            transform: scale(1);
+                        }
+                        50% {
+                            filter: brightness(1.1) drop-shadow(0 0 15px rgba(255, 0, 0, 0.6));
+                            transform: scale(1.02);
+                        }
+                    }
+                    
+                    /* 悬停时的加强效果 */
+                    .netease163-link:hover .netease163-icon-img {
+                        animation: netease163HoverPulse 1s ease-in-out infinite;
+                        filter: brightness(1.2) drop-shadow(0 0 20px rgba(255, 0, 0, 0.8));
+                    }
+                    
+                    @keyframes netease163HoverPulse {
+                        0%, 100% {
+                            transform: scale(1.05);
+                            filter: brightness(1.2) drop-shadow(0 0 20px rgba(255, 0, 0, 0.8));
+                        }
+                        50% {
+                            transform: scale(1.08);
+                            filter: brightness(1.3) drop-shadow(0 0 25px rgba(255, 0, 0, 1));
+                        }
+                    }
+                    
+                    /* 背景光晕效果 */
+                    .netease163-link::before {
+                        content: '';
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        width: 100%;
+                        height: 100%;
+                        background: radial-gradient(circle, rgba(255, 0, 0, 0.1) 0%, transparent 70%);
+                        transform: translate(-50%, -50%);
+                        animation: netease163Glow 3s ease-in-out infinite;
+                        z-index: -1;
+                        border-radius: 12px;
+                    }
+                    
+                    @keyframes netease163Glow {
                         0%, 100% {
                             opacity: 0.3;
                             transform: translate(-50%, -50%) scale(1);
@@ -6247,6 +6334,27 @@
                 console.log('iframe播放器已收缩');
             }
             
+            // 测试163链接功能 - 用于调试和演示
+            test163Link() {
+                console.log('测试163链接功能');
+                const testLinkData = {
+                    albumTitle: '测试专辑 - 网易云音乐163',
+                    albumPath: 'test/163',
+                    musicBrainzUrl: null,
+                    listenBrainzUrl: null,
+                    spotifyUrl: null,
+                    youtubeMusicUrl: null,
+                    appleMusicUrl: null,
+                    itunesUrl: null,
+                    deezerUrl: null,
+                    tidalUrl: null,
+                    netease163Url: 'https://music.163.com/outchain/player?type=1&id=73257118&auto=1&height=430',
+                    otherLinks: []
+                };
+                
+                this.showLinksDialog(testLinkData);
+            }
+            
             // 关闭iframe播放器
             closeIframePlayer() {
                 console.log('关闭iframe播放器');
@@ -6343,6 +6451,7 @@
                     'itunes.apple.com',
                     'deezer.com',
                     'tidal.com',
+                    'music.163.com',
                     'soundcloud.com',
                     'bandcamp.com',
                     'music.amazon.com'
@@ -6386,6 +6495,25 @@
                         return url;
                     }
                     
+                    // 网易云音乐163链接转换
+                    if (url.includes('music.163.com')) {
+                        console.log('检测到网易云音乐163链接');
+                        
+                        // 从URL中提取ID
+                        // 例如：https://music.163.com/outchain/player?type=1&id=73257118&auto=1&height=430
+                        const idMatch = url.match(/[?&]id=(\d+)/);
+                        
+                        if (idMatch && idMatch[1]) {
+                            const musicId = idMatch[1];
+                            const convertedUrl = `https://notion.busiyi.world/music-player/?server=netease&type=album&id=${musicId}&list-max-height=96`;
+                            console.log('163链接转换成功:', convertedUrl);
+                            return convertedUrl;
+                        } else {
+                            console.warn('无法从163链接中提取ID，返回原URL');
+                            return url;
+                        }
+                    }
+                    
                     // 其他服务暂时返回原URL
                     console.log('其他服务，返回原URL');
                     return url;
@@ -6399,7 +6527,13 @@
 
         // 启动屏保
         window.addEventListener('DOMContentLoaded', () => {
-            new ThreeJSScreensaver();
+            window.screensaver = new ThreeJSScreensaver();
+            
+            // 暴露测试方法到全局，方便调试
+            window.test163 = () => window.screensaver.test163Link();
+            
+            console.log('网易云音乐163支持已添加！');
+            console.log('测试方法：在控制台输入 test163() 来测试163链接功能');
         });
     </script>
 </body>
