@@ -338,9 +338,9 @@
         .iframe-album-cover {
             width: 40px;
             height: 40px;
-            border-radius: 8px;
+            border-radius: 50%; /* 改为完全圆形 */
             margin-right: 15px;
-            background: #333;
+            background: transparent; /* 背景透明 */
             position: relative;
             overflow: hidden;
         }
@@ -348,7 +348,7 @@
         .iframe-album-cover canvas {
             width: 100%;
             height: 100%;
-            border-radius: 8px;
+            border-radius: 50%; /* canvas也改为圆形 */
         }
 
         .iframe-info {
@@ -4352,12 +4352,16 @@
             getServiceNameFromUrl(url) {
                 try {
                     const hostname = new URL(url).hostname;
-                    // 提取域名主要部分
-                    const parts = hostname.split('.');
-                    if (parts.length >= 2) {
-                        // 返回主域名部分，例如从 music.youtube.com 返回 youtube
-                        return parts[parts.length - 2];
+                    
+                    // 自定义服务名称映射
+                    if (hostname === 'music.youtube.com') {
+                        return 'Youtube Music';
                     }
+                    if (hostname.includes('163')) {
+                        return 'Netease Music';
+                    }
+                    
+                    // 其他情况返回域名
                     return hostname;
                 } catch (e) {
                     return url;
@@ -6019,11 +6023,11 @@
                     // 创建渲染器
                     this.iframeShowcaseRenderer = new THREE.WebGLRenderer({
                         canvas: canvas,
-                        alpha: true,
+                        alpha: true, // 启用透明度
                         antialias: true
                     });
                     this.iframeShowcaseRenderer.setSize(40, 40);
-                    this.iframeShowcaseRenderer.setClearColor(0x000000, 0);
+                    this.iframeShowcaseRenderer.setClearColor(0x000000, 0); // 完全透明背景
                     
                     // 添加灯光
                     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -6246,7 +6250,8 @@
                 const albumPath = albumData.albumPath || `bg/${albumData.albumTitle}.jpg`;
                 
                 textureLoader.load(albumPath, (texture) => {
-                    const geometry = new THREE.PlaneGeometry(1, 1);
+                    // 创建圆形几何体而不是正方形，大小x2
+                    const geometry = new THREE.CircleGeometry(1.0, 32); // 半径1.0（原来0.5的2倍），32个分段使圆形更光滑
                     const material = new THREE.MeshLambertMaterial({ map: texture });
                     
                     this.iframeShowcaseCover = new THREE.Mesh(geometry, material);
@@ -6268,9 +6273,9 @@
                 const animate = () => {
                     this.iframeShowcaseAnimationId = requestAnimationFrame(animate);
                     
-                    // 旋转封面
+                    // 旋转封面 - 改为Z轴旋转（像黑胶唱片一样平面内旋转），向右旋转
                     if (this.iframeShowcaseCover) {
-                        this.iframeShowcaseCover.rotation.y += 0.01;
+                        this.iframeShowcaseCover.rotation.z -= 0.01; // 负值表示向右旋转
                     }
                     
                     // 更新可视化器
