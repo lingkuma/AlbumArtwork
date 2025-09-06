@@ -297,6 +297,156 @@
             display: block;
             margin-top: 5px;
         }
+
+        /* iframe播放器样式 */
+        .iframe-player {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%) translateY(100%);
+            width: 70%;
+            height: 70vh;
+            background: rgba(20, 20, 20, 0.95);
+            backdrop-filter: blur(15px);
+            border-radius: 20px 20px 0 0;
+            z-index: 2000;
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .iframe-player.expanded {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .iframe-player.collapsed {
+            transform: translateX(-50%) translateY(calc(100% - 60px));
+        }
+
+        .iframe-topbar {
+            height: 60px;
+            background: rgba(30, 30, 30, 0.9);
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .iframe-album-cover {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            margin-right: 15px;
+            background: #333;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .iframe-album-cover canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+        }
+
+        .iframe-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            margin-right: 15px;
+        }
+
+        .iframe-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .iframe-service {
+            font-size: 12px;
+            color: #999;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .iframe-visualizer {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 30px;
+            pointer-events: none;
+        }
+
+        .iframe-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .iframe-control-btn {
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+
+        .iframe-control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+
+        .iframe-control-btn.active {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .iframe-content {
+            flex: 1;
+            position: relative;
+            border-radius: 0 0 20px 20px;
+            overflow: hidden;
+            min-height: 0; /* 确保flex子项可以收缩 */
+            height: 90%;
+        }
+
+        .iframe-content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #000;
+        }
+
+        .iframe-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .iframe-loading .loading-spinner {
+            width: 32px;
+            height: 32px;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -402,9 +552,64 @@
                     <span class="settings-description" data-text="desktopModeDesc">启用后只响应三连击左键，适合作为桌面壁纸</span>
                 </div>
             </div>
+            <div class="settings-item">
+                <div class="settings-row">
+                    <label class="settings-label" data-text="iframeMode">在当前页面打开音乐网站</label>
+                    <input type="checkbox" id="iframe-mode-toggle">
+                    <span class="settings-description" data-text="iframeModeDesc">启用后点击音乐链接将在内嵌窗口中打开，而不是新标签页</span>
+                </div>
+            </div>
+            <div class="settings-item">
+                <div class="settings-row">
+                    <label class="settings-label" data-text="iframeMusicBrainzMode">在当前页面打开MusicBrainz</label>
+                    <input type="checkbox" id="iframe-musicbrainz-toggle">
+                    <span class="settings-description" data-text="iframeMusicBrainzModeDesc">启用后MusicBrainz链接将在内嵌窗口中打开</span>
+                </div>
+            </div>
+            <div class="settings-item">
+                <div class="settings-row">
+                    <label class="settings-label" data-text="iframeListenBrainzMode">在当前页面打开ListenBrainz</label>
+                    <input type="checkbox" id="iframe-listenbrainz-toggle">
+                    <span class="settings-description" data-text="iframeListenBrainzModeDesc">启用后ListenBrainz链接将在内嵌窗口中打开</span>
+                </div>
+            </div>
         </div>
         
         <div id="reset-container" style="text-align: center; margin-top: 20px;"></div>
+    </div>
+
+    <!-- iframe播放器 -->
+    <div class="iframe-player" id="iframe-player">
+        <div class="iframe-topbar">
+            <div class="iframe-album-cover" id="iframe-album-cover">
+                <canvas id="iframe-showcase-canvas"></canvas>
+            </div>
+            <div class="iframe-info">
+                <div class="iframe-title" id="iframe-title">未选择专辑</div>
+                <div class="iframe-service" id="iframe-service">音乐服务</div>
+            </div>
+            <div class="iframe-visualizer" id="iframe-visualizer">
+                <canvas id="iframe-visualizer-canvas"></canvas>
+            </div>
+            <div class="iframe-controls">
+                <button class="iframe-control-btn" id="iframe-pin-btn" title="固定/取消固定">📌</button>
+                <button class="iframe-control-btn" id="iframe-expand-btn" title="展开/收缩">⬇️</button>
+                <button class="iframe-control-btn" id="iframe-close-btn" title="关闭">✖️</button>
+            </div>
+        </div>
+        <div class="iframe-content">
+            <div class="iframe-loading" id="iframe-loading">
+                <div class="loading-spinner"></div>
+                <div>正在加载音乐服务...</div>
+            </div>
+            <iframe id="iframe-embed" 
+                    style="display: none; border-radius: 0 0 20px 20px;" 
+                    frameBorder="0" 
+                    allowfullscreen="" 
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+                    loading="lazy">
+            </iframe>
+        </div>
     </div>
 
     <!-- Three.js CDN -->
@@ -490,6 +695,44 @@
                 this.showcaseMouseMoveHandler = null;
                 this.showcaseMouseIdleHandler = null;
                 this.mouseIdleTimer = null;
+                
+                // iframe播放器相关属性
+                this.iframeModeEnabled = false;
+                this.iframeMusicBrainzModeEnabled = false;
+                this.iframeListenBrainzModeEnabled = false;
+                this.iframePlayer = document.getElementById('iframe-player');
+                this.iframeEmbed = document.getElementById('iframe-embed');
+                this.iframeLoading = document.getElementById('iframe-loading');
+                this.iframeTitle = document.getElementById('iframe-title');
+                this.iframeService = document.getElementById('iframe-service');
+                this.iframeAlbumCover = document.getElementById('iframe-album-cover');
+                this.iframePinBtn = document.getElementById('iframe-pin-btn');
+                this.iframeExpandBtn = document.getElementById('iframe-expand-btn');
+                this.iframeCloseBtn = document.getElementById('iframe-close-btn');
+                this.iframeShowcaseCanvas = document.getElementById('iframe-showcase-canvas');
+                this.iframeVisualizerCanvas = document.getElementById('iframe-visualizer-canvas');
+                
+                // iframe状态
+                this.isIframePinned = false;
+                this.isIframeExpanded = false;
+                this.iframeMouseLeaveTimer = null;
+                this.currentIframeUrl = null;
+                this.currentAlbumData = null;
+                
+                // iframe 3D展示台
+                this.iframeShowcaseScene = null;
+                this.iframeShowcaseCamera = null;
+                this.iframeShowcaseRenderer = null;
+                this.iframeShowcaseCover = null;
+                this.iframeShowcaseAnimationId = null;
+                
+                // iframe可视化器
+                this.iframeVisualizerScene = null;
+                this.iframeVisualizerCamera = null;
+                this.iframeVisualizerRenderer = null;
+                this.iframeVisualizerBars = [];
+                this.iframeAudioContext = null;
+                this.iframeAnalyzer = null;
                 
                 // 从本地存储加载设置
                 this.loadSettings();
@@ -738,6 +981,7 @@
                     this.hideLoading();
                     this.startAnimations();
                     this.bindEvents();
+                    this.initIframePlayer(); // 初始化iframe播放器
                     this.animate();
                 } catch (error) {
                     console.error('初始化失败:', error);
@@ -755,6 +999,7 @@
                             this.hideLoading();
                             this.startAnimations();
                             this.bindEvents();
+                            this.initIframePlayer(); // 初始化iframe播放器
                             this.animate();
                         } catch (backupError) {
                             console.error('本地模式也失败:', backupError);
@@ -5026,16 +5271,7 @@
                     // 点击整个列表项
                     item.addEventListener('click', () => {
                         if (url) {
-                            // 打开链接
-                            window.open(url, '_blank');
-                            
-                            // 复制到剪贴板
-                            this.copyToClipboard(url);
-                            
-                            // 显示提示
-                            this.showStatusMessage(this.formatText('linkCopied', {
-                                service: serviceName
-                            }));
+                            this.handleLinkClick(url, serviceName, linkData);
                         }
                     });
                     
@@ -5046,16 +5282,7 @@
                             e.stopPropagation(); // 阻止冒泡到列表项
                             
                             if (url) {
-                                // 打开链接
-                                window.open(url, '_blank');
-                                
-                                // 复制到剪贴板
-                                this.copyToClipboard(url);
-                                
-                                // 显示提示
-                                this.showStatusMessage(this.formatText('linkCopied', {
-                                    service: serviceName
-                                }));
+                                this.handleLinkClick(url, serviceName, linkData);
                             }
                         });
                     }
@@ -5198,7 +5425,10 @@
                         animationIntervalTime: this.animationIntervalTime,
                         animationWeights: this.animationWeights,
                         backgroundColor: this.scene ? this.scene.background.getHexString() : '000000',
-                        desktopMode: this.desktopMode || false
+                        desktopMode: this.desktopMode || false,
+                        iframeModeEnabled: this.iframeModeEnabled || false,
+                        iframeMusicBrainzModeEnabled: this.iframeMusicBrainzModeEnabled || false,
+                        iframeListenBrainzModeEnabled: this.iframeListenBrainzModeEnabled || false
                     };
                     
                     localStorage.setItem('mac_screensaver_settings', JSON.stringify(settings));
@@ -5225,6 +5455,9 @@
                         if (settings.gap !== undefined) this.gap = settings.gap;
                         if (settings.animationIntervalTime !== undefined) this.animationIntervalTime = settings.animationIntervalTime;
                         if (settings.desktopMode !== undefined) this.desktopMode = settings.desktopMode;
+                        if (settings.iframeModeEnabled !== undefined) this.iframeModeEnabled = settings.iframeModeEnabled;
+                        if (settings.iframeMusicBrainzModeEnabled !== undefined) this.iframeMusicBrainzModeEnabled = settings.iframeMusicBrainzModeEnabled;
+                        if (settings.iframeListenBrainzModeEnabled !== undefined) this.iframeListenBrainzModeEnabled = settings.iframeListenBrainzModeEnabled;
                         
                         if (settings.animationWeights) {
                             // 合并权重设置，确保所有键都存在
@@ -5335,6 +5568,57 @@
                         this.showStatusMessage(this.texts.desktopModeEnabled);
                     } else {
                         this.showStatusMessage(this.texts.desktopModeDisabled);
+                    }
+                });
+                
+                // iframe模式设置
+                const iframeModeToggle = document.getElementById('iframe-mode-toggle');
+                iframeModeToggle.checked = this.iframeModeEnabled || false;
+                
+                iframeModeToggle.addEventListener('change', () => {
+                    this.iframeModeEnabled = iframeModeToggle.checked;
+                    // 实时保存设置
+                    this.saveSettings();
+                    
+                    // 显示状态消息
+                    if (this.iframeModeEnabled) {
+                        this.showStatusMessage('已启用iframe模式，音乐链接将在当前页面打开');
+                    } else {
+                        this.showStatusMessage('已禁用iframe模式，音乐链接将在新标签页打开');
+                    }
+                });
+                
+                // MusicBrainz iframe模式设置
+                const iframeMusicBrainzToggle = document.getElementById('iframe-musicbrainz-toggle');
+                iframeMusicBrainzToggle.checked = this.iframeMusicBrainzModeEnabled || false;
+                
+                iframeMusicBrainzToggle.addEventListener('change', () => {
+                    this.iframeMusicBrainzModeEnabled = iframeMusicBrainzToggle.checked;
+                    // 实时保存设置
+                    this.saveSettings();
+                    
+                    // 显示状态消息
+                    if (this.iframeMusicBrainzModeEnabled) {
+                        this.showStatusMessage('已启用MusicBrainz iframe模式');
+                    } else {
+                        this.showStatusMessage('已禁用MusicBrainz iframe模式');
+                    }
+                });
+                
+                // ListenBrainz iframe模式设置
+                const iframeListenBrainzToggle = document.getElementById('iframe-listenbrainz-toggle');
+                iframeListenBrainzToggle.checked = this.iframeListenBrainzModeEnabled || false;
+                
+                iframeListenBrainzToggle.addEventListener('change', () => {
+                    this.iframeListenBrainzModeEnabled = iframeListenBrainzToggle.checked;
+                    // 实时保存设置
+                    this.saveSettings();
+                    
+                    // 显示状态消息
+                    if (this.iframeListenBrainzModeEnabled) {
+                        this.showStatusMessage('已启用ListenBrainz iframe模式');
+                    } else {
+                        this.showStatusMessage('已禁用ListenBrainz iframe模式');
                     }
                 });
                 
@@ -5606,6 +5890,509 @@
                 // 清空进度信息
                 if (this.loadingProgress) {
                     this.loadingProgress.textContent = '';
+                }
+            }
+
+            // ===== iframe播放器相关方法 =====
+            
+            // 初始化iframe播放器
+            initIframePlayer() {
+                try {
+                    console.log('初始化iframe播放器...');
+                    
+                    // 初始化iframe 3D展示台
+                    this.initIframeShowcase();
+                    
+                    // 初始化iframe音频可视化器
+                    this.initIframeVisualizer();
+                    
+                    // 绑定iframe控制按钮事件
+                    this.bindIframeEvents();
+                    
+                    console.log('iframe播放器初始化完成');
+                } catch (error) {
+                    console.error('iframe播放器初始化失败:', error);
+                }
+            }
+            
+            // 初始化iframe 3D展示台
+            initIframeShowcase() {
+                try {
+                    const canvas = this.iframeShowcaseCanvas;
+                    if (!canvas) return;
+                    
+                    // 创建场景
+                    this.iframeShowcaseScene = new THREE.Scene();
+                    
+                    // 创建相机
+                    const aspect = 1; // 正方形画布
+                    this.iframeShowcaseCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+                    this.iframeShowcaseCamera.position.set(0, 0, 2);
+                    
+                    // 创建渲染器
+                    this.iframeShowcaseRenderer = new THREE.WebGLRenderer({
+                        canvas: canvas,
+                        alpha: true,
+                        antialias: true
+                    });
+                    this.iframeShowcaseRenderer.setSize(40, 40);
+                    this.iframeShowcaseRenderer.setClearColor(0x000000, 0);
+                    
+                    // 添加灯光
+                    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                    this.iframeShowcaseScene.add(ambientLight);
+                    
+                    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                    directionalLight.position.set(1, 1, 1);
+                    this.iframeShowcaseScene.add(directionalLight);
+                    
+                    console.log('iframe 3D展示台初始化完成');
+                } catch (error) {
+                    console.error('iframe 3D展示台初始化失败:', error);
+                }
+            }
+            
+            // 初始化iframe音频可视化器
+            initIframeVisualizer() {
+                try {
+                    const canvas = this.iframeVisualizerCanvas;
+                    if (!canvas) return;
+                    
+                    // 创建场景
+                    this.iframeVisualizerScene = new THREE.Scene();
+                    
+                    // 创建相机
+                    this.iframeVisualizerCamera = new THREE.OrthographicCamera(-100, 100, 15, -15, 0.1, 1000);
+                    this.iframeVisualizerCamera.position.z = 100;
+                    
+                    // 创建渲染器
+                    this.iframeVisualizerRenderer = new THREE.WebGLRenderer({
+                        canvas: canvas,
+                        alpha: true,
+                        antialias: true
+                    });
+                    this.iframeVisualizerRenderer.setSize(200, 30);
+                    this.iframeVisualizerRenderer.setClearColor(0x000000, 0);
+                    
+                    // 创建音频条
+                    this.createVisualizerBars();
+                    
+                    console.log('iframe音频可视化器初始化完成');
+                } catch (error) {
+                    console.error('iframe音频可视化器初始化失败:', error);
+                }
+            }
+            
+            // 创建可视化器音频条
+            createVisualizerBars() {
+                const barCount = 32;
+                const barWidth = 4;
+                const barSpacing = 2;
+                const totalWidth = barCount * (barWidth + barSpacing) - barSpacing;
+                const startX = -totalWidth / 2;
+                
+                this.iframeVisualizerBars = [];
+                
+                for (let i = 0; i < barCount; i++) {
+                    const geometry = new THREE.BoxGeometry(barWidth, 1, 1);
+                    const material = new THREE.MeshBasicMaterial({
+                        color: new THREE.Color().setHSL(i / barCount, 0.8, 0.6),
+                        transparent: true,
+                        opacity: 0.8
+                    });
+                    
+                    const bar = new THREE.Mesh(geometry, material);
+                    bar.position.x = startX + i * (barWidth + barSpacing);
+                    bar.position.y = 0;
+                    
+                    this.iframeVisualizerScene.add(bar);
+                    this.iframeVisualizerBars.push(bar);
+                }
+            }
+            
+            // 更新可视化器（模拟音频数据）
+            updateVisualizerBars() {
+                if (!this.iframeVisualizerBars.length) return;
+                
+                const time = Date.now() * 0.005;
+                this.iframeVisualizerBars.forEach((bar, i) => {
+                    // 模拟音频数据的波动
+                    const height = Math.max(0.5, Math.sin(time + i * 0.3) * 0.5 + 0.5 + Math.random() * 0.3) * 15;
+                    bar.scale.y = height;
+                    bar.position.y = height / 2 - 7.5;
+                });
+                
+                if (this.iframeVisualizerRenderer && this.iframeVisualizerScene && this.iframeVisualizerCamera) {
+                    this.iframeVisualizerRenderer.render(this.iframeVisualizerScene, this.iframeVisualizerCamera);
+                }
+            }
+            
+            // 绑定iframe事件
+            bindIframeEvents() {
+                // 固定按钮
+                this.iframePinBtn.addEventListener('click', () => {
+                    this.toggleIframePin();
+                });
+                
+                // 展开/收缩按钮
+                this.iframeExpandBtn.addEventListener('click', () => {
+                    this.toggleIframeExpand();
+                });
+                
+                // 关闭按钮
+                this.iframeCloseBtn.addEventListener('click', () => {
+                    this.closeIframePlayer();
+                });
+                
+                // 鼠标进入/离开事件
+                this.iframePlayer.addEventListener('mouseenter', () => {
+                    this.onIframeMouseEnter();
+                });
+                
+                this.iframePlayer.addEventListener('mouseleave', () => {
+                    this.onIframeMouseLeave();
+                });
+            }
+            
+            // 打开iframe播放器
+            openIframePlayer(url, albumData) {
+                console.log('打开iframe播放器:', url, albumData);
+                
+                this.currentIframeUrl = url;
+                this.currentAlbumData = albumData;
+                
+                // 更新标题和服务信息
+                this.iframeTitle.textContent = albumData.albumTitle || '未知专辑';
+                this.iframeService.textContent = this.getServiceNameFromUrl(url);
+                
+                // 显示加载状态
+                this.iframeLoading.style.display = 'block';
+                this.iframeEmbed.style.display = 'none';
+                
+                // 显示播放器
+                this.iframePlayer.style.display = 'block';
+                setTimeout(() => {
+                    this.iframePlayer.classList.add('expanded');
+                    this.isIframeExpanded = true;
+                    this.iframeExpandBtn.textContent = '⬇️';
+                }, 100);
+                
+                // 更新封面展示
+                this.updateIframeShowcase(albumData);
+                
+                // 加载iframe内容
+                this.loadIframeContent(url);
+            }
+            
+            // 加载iframe内容
+            loadIframeContent(url) {
+                const iframe = this.iframeEmbed;
+                
+                // 转换URL为iframe兼容格式
+                const embedUrl = this.convertToEmbedUrl(url);
+                console.log('原始URL:', url);
+                console.log('转换后的URL:', embedUrl);
+                
+                // 清理之前的事件监听器
+                iframe.onload = null;
+                iframe.onerror = null;
+                
+                // 设置加载超时
+                const loadTimeout = setTimeout(() => {
+                    console.warn('iframe加载超时');
+                    this.iframeLoading.innerHTML = `
+                        <div style="color: #ff9800;">
+                            <div>加载超时</div>
+                            <div style="font-size: 12px; margin-top: 5px;">
+                                <a href="${url}" target="_blank" style="color: #4a9eff;">在新标签页中打开</a>
+                            </div>
+                        </div>
+                    `;
+                }, 10000); // 10秒超时
+                
+                iframe.onload = () => {
+                    console.log('iframe内容加载完成');
+                    clearTimeout(loadTimeout);
+                    this.iframeLoading.style.display = 'none';
+                    iframe.style.display = 'block';
+                };
+                
+                iframe.onerror = (error) => {
+                    console.error('iframe内容加载失败:', error);
+                    clearTimeout(loadTimeout);
+                    this.iframeLoading.innerHTML = `
+                        <div style="color: #ff6b6b;">
+                            <div>加载失败</div>
+                            <div style="font-size: 12px; margin-top: 5px;">
+                                <a href="${url}" target="_blank" style="color: #4a9eff;">在新标签页中打开</a>
+                            </div>
+                        </div>
+                    `;
+                };
+                
+                // 先重置iframe
+                iframe.src = 'about:blank';
+                
+                // 稍等一下再设置真正的URL
+                setTimeout(() => {
+                    iframe.src = embedUrl;
+                    console.log('设置iframe src:', embedUrl);
+                }, 100);
+            }
+            
+            // 更新iframe封面展示
+            updateIframeShowcase(albumData) {
+                if (!this.iframeShowcaseScene || !this.iframeShowcaseCamera || !this.iframeShowcaseRenderer) return;
+                
+                // 清理旧的封面
+                if (this.iframeShowcaseCover) {
+                    this.iframeShowcaseScene.remove(this.iframeShowcaseCover);
+                    if (this.iframeShowcaseCover.material.map) {
+                        this.iframeShowcaseCover.material.map.dispose();
+                    }
+                    this.iframeShowcaseCover.material.dispose();
+                    this.iframeShowcaseCover.geometry.dispose();
+                }
+                
+                // 创建新的封面
+                const textureLoader = new THREE.TextureLoader();
+                const albumPath = albumData.albumPath || `bg/${albumData.albumTitle}.jpg`;
+                
+                textureLoader.load(albumPath, (texture) => {
+                    const geometry = new THREE.PlaneGeometry(1, 1);
+                    const material = new THREE.MeshLambertMaterial({ map: texture });
+                    
+                    this.iframeShowcaseCover = new THREE.Mesh(geometry, material);
+                    this.iframeShowcaseScene.add(this.iframeShowcaseCover);
+                    
+                    // 开始渲染循环
+                    this.startIframeShowcaseAnimation();
+                }, undefined, (error) => {
+                    console.warn('加载iframe封面失败:', error);
+                });
+            }
+            
+            // 开始iframe展示台动画
+            startIframeShowcaseAnimation() {
+                if (this.iframeShowcaseAnimationId) {
+                    cancelAnimationFrame(this.iframeShowcaseAnimationId);
+                }
+                
+                const animate = () => {
+                    this.iframeShowcaseAnimationId = requestAnimationFrame(animate);
+                    
+                    // 旋转封面
+                    if (this.iframeShowcaseCover) {
+                        this.iframeShowcaseCover.rotation.y += 0.01;
+                    }
+                    
+                    // 更新可视化器
+                    this.updateVisualizerBars();
+                    
+                    // 渲染展示台
+                    if (this.iframeShowcaseRenderer && this.iframeShowcaseScene && this.iframeShowcaseCamera) {
+                        this.iframeShowcaseRenderer.render(this.iframeShowcaseScene, this.iframeShowcaseCamera);
+                    }
+                };
+                
+                animate();
+            }
+            
+            // 停止iframe展示台动画
+            stopIframeShowcaseAnimation() {
+                if (this.iframeShowcaseAnimationId) {
+                    cancelAnimationFrame(this.iframeShowcaseAnimationId);
+                    this.iframeShowcaseAnimationId = null;
+                }
+            }
+            
+            // 切换iframe固定状态
+            toggleIframePin() {
+                this.isIframePinned = !this.isIframePinned;
+                this.iframePinBtn.classList.toggle('active', this.isIframePinned);
+                
+                if (this.isIframePinned) {
+                    this.iframePinBtn.textContent = '📍';
+                    console.log('iframe已固定');
+                } else {
+                    this.iframePinBtn.textContent = '📌';
+                    console.log('iframe已取消固定');
+                }
+            }
+            
+            // 切换iframe展开状态
+            toggleIframeExpand() {
+                if (this.isIframeExpanded) {
+                    this.collapseIframePlayer();
+                } else {
+                    this.expandIframePlayer();
+                }
+            }
+            
+            // 展开iframe播放器
+            expandIframePlayer() {
+                this.iframePlayer.classList.remove('collapsed');
+                this.iframePlayer.classList.add('expanded');
+                this.isIframeExpanded = true;
+                this.iframeExpandBtn.textContent = '⬇️';
+                console.log('iframe播放器已展开');
+            }
+            
+            // 收缩iframe播放器
+            collapseIframePlayer() {
+                this.iframePlayer.classList.remove('expanded');
+                this.iframePlayer.classList.add('collapsed');
+                this.isIframeExpanded = false;
+                this.iframeExpandBtn.textContent = '⬆️';
+                console.log('iframe播放器已收缩');
+            }
+            
+            // 关闭iframe播放器
+            closeIframePlayer() {
+                console.log('关闭iframe播放器');
+                
+                // 停止动画
+                this.stopIframeShowcaseAnimation();
+                
+                // 清理iframe内容
+                this.iframeEmbed.src = '';
+                
+                // 隐藏播放器
+                this.iframePlayer.classList.remove('expanded', 'collapsed');
+                setTimeout(() => {
+                    this.iframePlayer.style.display = 'none';
+                }, 400);
+                
+                // 重置状态
+                this.isIframeExpanded = false;
+                this.isIframePinned = false;
+                this.iframePinBtn.classList.remove('active');
+                this.iframePinBtn.textContent = '📌';
+                this.iframeExpandBtn.textContent = '⬇️';
+                
+                // 清理变量
+                this.currentIframeUrl = null;
+                this.currentAlbumData = null;
+            }
+            
+            // 鼠标进入iframe
+            onIframeMouseEnter() {
+                if (this.iframeMouseLeaveTimer) {
+                    clearTimeout(this.iframeMouseLeaveTimer);
+                    this.iframeMouseLeaveTimer = null;
+                }
+                
+                // 如果当前是收缩状态且未固定，则展开
+                if (!this.isIframeExpanded && !this.isIframePinned) {
+                    this.expandIframePlayer();
+                }
+            }
+            
+            // 鼠标离开iframe
+            onIframeMouseLeave() {
+                // 如果未固定，设置延迟收缩
+                if (!this.isIframePinned) {
+                    this.iframeMouseLeaveTimer = setTimeout(() => {
+                        if (this.isIframeExpanded) {
+                            this.collapseIframePlayer();
+                        }
+                    }, 1000); // 1秒后收缩
+                }
+            }
+
+            // 处理链接点击 - 根据设置决定是否使用iframe
+            handleLinkClick(url, serviceName, albumData) {
+                console.log('处理链接点击:', url, serviceName, this.iframeModeEnabled);
+                
+                // 复制到剪贴板
+                this.copyToClipboard(url);
+                
+                // 显示提示
+                this.showStatusMessage(this.formatText('linkCopied', {
+                    service: serviceName
+                }));
+                
+                // 检查是否应该使用iframe模式
+                let shouldUseIframe = false;
+                
+                if (url.includes('musicbrainz.org')) {
+                    shouldUseIframe = this.iframeMusicBrainzModeEnabled;
+                } else if (url.includes('listenbrainz.org')) {
+                    shouldUseIframe = this.iframeListenBrainzModeEnabled;
+                } else {
+                    // 其他音乐流媒体服务
+                    const isMusicService = this.isMusicStreamingService(url);
+                    shouldUseIframe = this.iframeModeEnabled && isMusicService;
+                }
+                
+                if (shouldUseIframe) {
+                    // 使用iframe模式打开
+                    this.openIframePlayer(url, albumData);
+                } else {
+                    // 在新标签页打开
+                    window.open(url, '_blank');
+                }
+            }
+
+            // 判断是否为音乐流媒体服务
+            isMusicStreamingService(url) {
+                const musicServices = [
+                    'spotify.com',
+                    'music.youtube.com',
+                    'music.apple.com',
+                    'itunes.apple.com',
+                    'deezer.com',
+                    'tidal.com',
+                    'soundcloud.com',
+                    'bandcamp.com',
+                    'music.amazon.com'
+                ];
+                
+                return musicServices.some(service => url.includes(service));
+            }
+
+            // 转换URL为iframe兼容的embed格式
+            convertToEmbedUrl(url) {
+                try {
+                    console.log('开始转换URL:', url);
+                    
+                    // Spotify链接转换
+                    if (url.includes('open.spotify.com')) {
+                        console.log('检测到Spotify链接');
+                        
+                        // 移除查询参数
+                        const cleanUrl = url.split('?')[0];
+                        console.log('清理后的URL:', cleanUrl);
+                        
+                        // 检查是否已经是embed格式
+                        if (cleanUrl.includes('/embed/')) {
+                            console.log('已经是embed格式');
+                            return url;
+                        }
+                        
+                        // 转换为embed格式
+                        const embedUrl = cleanUrl.replace('open.spotify.com/', 'open.spotify.com/embed/');
+                        console.log('转换为embed格式:', embedUrl);
+                        
+                        // 添加必要的查询参数
+                        const finalUrl = embedUrl + '?utm_source=generator';
+                        console.log('最终URL:', finalUrl);
+                        return finalUrl;
+                    }
+                    
+                    // YouTube Music链接转换
+                    if (url.includes('music.youtube.com')) {
+                        console.log('检测到YouTube Music链接，暂时返回原URL');
+                        return url;
+                    }
+                    
+                    // 其他服务暂时返回原URL
+                    console.log('其他服务，返回原URL');
+                    return url;
+                    
+                } catch (error) {
+                    console.error('URL转换失败:', error);
+                    return url;
                 }
             }
         }
