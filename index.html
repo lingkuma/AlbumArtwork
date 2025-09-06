@@ -377,7 +377,7 @@
             text-overflow: ellipsis;
         }
 
-        .iframe-visualizer {
+        #jsi-cherry-container {
             position: absolute;
             left: 50%;
             top: 50%;
@@ -385,6 +385,16 @@
             width: 200px;
             height: 30px;
             pointer-events: none;
+            background-color: transparent;
+        }
+
+        /* 樱花飘落动画样式 */
+        #jsi-cherry-container.container {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: transparent;
         }
 
         .iframe-controls {
@@ -588,9 +598,7 @@
                 <div class="iframe-title" id="iframe-title">未选择专辑</div>
                 <div class="iframe-service" id="iframe-service">音乐服务</div>
             </div>
-            <div class="iframe-visualizer" id="iframe-visualizer">
-                <canvas id="iframe-visualizer-canvas"></canvas>
-            </div>
+            <div id="jsi-cherry-container" class="container"></div>
             <div class="iframe-controls">
                 <button class="iframe-control-btn" id="iframe-pin-btn" title="固定/取消固定">📌</button>
                 <button class="iframe-control-btn" id="iframe-expand-btn" title="展开/收缩">⬇️</button>
@@ -614,6 +622,283 @@
 
     <!-- Three.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+
+    <!-- jQuery CDN for cherry blossom animation -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- 樱花飘落动画脚本 -->
+    <script>
+        var RENDERER = {
+            INIT_CHERRY_BLOSSOM_COUNT : 30,
+            MAX_ADDING_INTERVAL : 10,
+            WATCH_INTERVAL : 300,
+
+            init : function(){
+                this.isRunning = true;
+                this.animationId = null;
+                this.setParameters();
+                this.reconstructMethods();
+                this.setup();
+                this.bindEvent();
+                this.render();
+            },
+            setParameters : function(){
+                this.$window = $(window);
+                this.$container = $('#jsi-cherry-container');
+                this.$canvas = $('<canvas />');
+                this.context = this.$canvas.appendTo(this.$container).get(0).getContext('2d');
+                this.cherries = [];
+                this.watchIds = [];
+            },
+            reconstructMethods : function(){
+                this.watchWindowSize = this.watchWindowSize.bind(this);
+                this.jdugeToStopResize = this.jdugeToStopResize.bind(this);
+                this.render = this.render.bind(this);
+            },
+            setup : function(){
+                this.cherries.length = 0;
+                this.watchIds.length = 0;
+                this.width = this.$container.width() || 200;
+                this.height = this.$container.height() || 30;
+                this.$canvas.attr({width : this.width, height : this.height});
+                this.maxAddingInterval = Math.round(this.MAX_ADDING_INTERVAL * 1000 / this.width);
+                this.addingInterval = this.maxAddingInterval;
+                this.createCherries();
+            },
+            createCherries : function(){
+                // 对于小容器，减少樱花数量
+                var cherryCount = Math.max(3, Math.round(this.INIT_CHERRY_BLOSSOM_COUNT * this.width / 1000));
+                for(var i = 0, length = cherryCount; i < length; i++){
+                    this.cherries.push(new CHERRY_BLOSSOM(this, true));
+                }
+            },
+            watchWindowSize : function(){
+                this.clearTimer();
+                this.tmpWidth = this.$window.width();
+                this.tmpHeight = this.$window.height();
+                this.watchIds.push(setTimeout(this.jdugeToStopResize, this.WATCH_INTERVAL));
+            },
+            clearTimer : function(){
+                while(this.watchIds.length > 0){
+                    clearTimeout(this.watchIds.pop());
+                }
+            },
+            jdugeToStopResize : function(){
+                var width = this.$window.width(),
+                    height = this.$window.height(),
+                    stopped = (width == this.tmpWidth && height == this.tmpHeight);
+
+                this.tmpWidth = width;
+                this.tmpHeight = height;
+
+                if(stopped){
+                    this.setup();
+                }
+            },
+            bindEvent : function(){
+                this.$window.on('resize', this.watchWindowSize);
+            },
+            render : function(){
+                // 检查是否应该停止渲染
+                if (!this.isRunning) {
+                    return;
+                }
+
+                this.animationId = requestAnimationFrame(this.render);
+
+                // 检查context是否还存在
+                if (!this.context || !this.context.canvas || !this.context.canvas.parentNode) {
+                    this.isRunning = false;
+                    return;
+                }
+
+                this.context.clearRect(0, 0, this.width, this.height);
+
+                this.cherries.sort(function(cherry1, cherry2){
+                    return cherry1.z - cherry2.z;
+                });
+                for(var i = this.cherries.length - 1; i >= 0; i--){
+                    if(!this.cherries[i].render(this.context)){
+                        this.cherries.splice(i, 1);
+                    }
+                }
+                if(--this.addingInterval == 0){
+                    this.addingInterval = this.maxAddingInterval;
+                    this.cherries.push(new CHERRY_BLOSSOM(this, false));
+                }
+            },
+
+            stop : function(){
+                this.isRunning = false;
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                    this.animationId = null;
+                }
+                this.clearTimer();
+                this.cherries = [];
+            }
+        };
+
+        var CHERRY_BLOSSOM = function(renderer, isRandom){
+            this.renderer = renderer;
+            this.init(isRandom);
+        };
+
+        CHERRY_BLOSSOM.prototype = {
+            FOCUS_POSITION : 300,
+            FAR_LIMIT : 600,
+            MAX_RIPPLE_COUNT : 100,
+            RIPPLE_RADIUS : 100,
+            SURFACE_RATE : 0.5,
+            SINK_OFFSET : 20,
+
+            init : function(isRandom){
+                this.x = this.getRandomValue(-this.renderer.width, this.renderer.width);
+                this.y = isRandom ? this.getRandomValue(0, this.renderer.height) : this.renderer.height * 1.5;
+                this.z = this.getRandomValue(0, this.FAR_LIMIT);
+                this.vx = this.getRandomValue(-1, 1); // 减小水平速度
+                this.vy = -1; // 减小垂直速度
+                this.theta = this.getRandomValue(0, Math.PI * 2);
+                this.phi = this.getRandomValue(0, Math.PI * 2);
+                this.psi = 0;
+                this.dpsi = this.getRandomValue(Math.PI / 600, Math.PI / 300);
+                this.opacity = 0;
+                this.endTheta = false;
+                this.endPhi = false;
+                this.rippleCount = 0;
+
+                var axis = this.getAxis(),
+                    theta = this.theta + Math.ceil(-(this.y + this.renderer.height * this.SURFACE_RATE) / this.vy) * Math.PI / 500;
+                theta %= Math.PI * 2;
+
+                // 缩小樱花尺寸以适应小容器
+                var scale = Math.min(1, this.renderer.width / 200);
+                this.offsetY = 20 * scale * ((theta <= Math.PI / 2 || theta >= Math.PI * 3 / 2) ? -1 : 1);
+                this.thresholdY = this.renderer.height / 2 + this.renderer.height * this.SURFACE_RATE * axis.rate;
+                this.entityColor = this.renderer.context.createRadialGradient(0, 20 * scale, 0, 0, 20 * scale, 40 * scale);
+                this.entityColor.addColorStop(0, 'hsl(330, 70%, ' + 50 * (0.3 + axis.rate) + '%)');
+                this.entityColor.addColorStop(0.05, 'hsl(330, 40%,' + 55 * (0.3 + axis.rate) + '%)');
+                this.entityColor.addColorStop(1, 'hsl(330, 20%, ' + 70 * (0.3 + axis.rate) + '%)');
+                this.shadowColor = this.renderer.context.createRadialGradient(0, 20 * scale, 0, 0, 20 * scale, 40 * scale);
+                this.shadowColor.addColorStop(0, 'hsl(330, 40%, ' + 30 * (0.3 + axis.rate) + '%)');
+                this.shadowColor.addColorStop(0.05, 'hsl(330, 40%,' + 30 * (0.3 + axis.rate) + '%)');
+                this.shadowColor.addColorStop(1, 'hsl(330, 20%, ' + 40 * (0.3 + axis.rate) + '%)');
+            },
+            getRandomValue : function(min, max){
+                return min + (max - min) * Math.random();
+            },
+            getAxis : function(){
+                var rate = this.FOCUS_POSITION / (this.z + this.FOCUS_POSITION),
+                    x = this.renderer.width / 2 + this.x * rate,
+                    y = this.renderer.height / 2 - this.y * rate;
+                return {rate : rate, x : x, y : y};
+            },
+            renderCherry : function(context, axis){
+                // 根据容器大小调整樱花尺寸
+                var scale = Math.min(1, this.renderer.width / 200);
+                var size = 20 * scale;
+
+                context.beginPath();
+                context.moveTo(0, size);
+                context.bezierCurveTo(-size * 1.5, size * 0.5, -size * 0.25, -size * 1.5, 0, -size * 0.5);
+                context.bezierCurveTo(size * 0.25, -size * 1.5, size * 1.5, size * 0.5, 0, size);
+                context.fill();
+
+                for(var i = -2; i < 2; i++){
+                    context.beginPath();
+                    context.moveTo(0, size);
+                    context.quadraticCurveTo(i * 6 * scale, 5 * scale, i * 2 * scale, -12 * scale + Math.abs(i) * scale);
+                    context.stroke();
+                }
+            },
+            render : function(context){
+                var axis = this.getAxis();
+
+                if(axis.y == this.thresholdY && this.rippleCount < this.MAX_RIPPLE_COUNT){
+                    context.save();
+                    context.lineWidth = 2;
+                    context.strokeStyle = 'hsla(0, 0%, 100%, ' + (this.MAX_RIPPLE_COUNT - this.rippleCount) / this.MAX_RIPPLE_COUNT + ')';
+                    context.translate(axis.x + this.offsetY * axis.rate * (this.theta <= Math.PI ? -1 : 1), axis.y);
+                    context.scale(1, 0.3);
+                    context.beginPath();
+                    context.arc(0, 0, this.rippleCount / this.MAX_RIPPLE_COUNT * this.RIPPLE_RADIUS * axis.rate, 0, Math.PI * 2, false);
+                    context.stroke();
+                    context.restore();
+                    this.rippleCount++;
+                }
+                if(axis.y < this.thresholdY || (!this.endTheta || !this.endPhi)){
+                    if(this.y <= 0){
+                        this.opacity = Math.min(this.opacity + 0.01, 1);
+                    }
+                    context.save();
+                    context.globalAlpha = this.opacity;
+                    context.fillStyle = this.shadowColor;
+                    context.strokeStyle = 'hsl(330, 30%,' + 40 * (0.3 + axis.rate) + '%)';
+                    context.translate(axis.x, Math.max(axis.y, this.thresholdY + this.thresholdY - axis.y));
+                    context.rotate(Math.PI - this.theta);
+                    context.scale(axis.rate * -Math.sin(this.phi), axis.rate);
+                    context.translate(0, this.offsetY);
+                    this.renderCherry(context, axis);
+                    context.restore();
+                }
+                context.save();
+                context.fillStyle = this.entityColor;
+                context.strokeStyle = 'hsl(330, 40%,' + 70 * (0.3 + axis.rate) + '%)';
+                context.translate(axis.x, axis.y + Math.abs(this.SINK_OFFSET * Math.sin(this.psi) * axis.rate));
+                context.rotate(this.theta);
+                context.scale(axis.rate * Math.sin(this.phi), axis.rate);
+                context.translate(0, this.offsetY);
+                this.renderCherry(context, axis);
+                context.restore();
+
+                if(this.y <= -this.renderer.height / 4){
+                    if(!this.endTheta){
+                        for(var theta = Math.PI / 2, end = Math.PI * 3 / 2; theta <= end; theta += Math.PI){
+                            if(this.theta < theta && this.theta + Math.PI / 200 > theta){
+                                this.theta = theta;
+                                this.endTheta = true;
+                                break;
+                            }
+                        }
+                    }
+                    if(!this.endPhi){
+                        for(var phi = Math.PI / 8, end = Math.PI * 7 / 8; phi <= end; phi += Math.PI * 3 / 4){
+                            if(this.phi < phi && this.phi + Math.PI / 200 > phi){
+                                this.phi = Math.PI / 8;
+                                this.endPhi = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if(!this.endTheta){
+                    if(axis.y == this.thresholdY){
+                        this.theta += Math.PI / 200 * ((this.theta < Math.PI / 2 || (this.theta >= Math.PI && this.theta < Math.PI * 3 / 2)) ? 1 : -1);
+                    }else{
+                        this.theta += Math.PI / 500;
+                    }
+                    this.theta %= Math.PI * 2;
+                }
+                if(this.endPhi){
+                    if(this.rippleCount == this.MAX_RIPPLE_COUNT){
+                        this.psi += this.dpsi;
+                        this.psi %= Math.PI * 2;
+                    }
+                }else{
+                    this.phi += Math.PI / ((axis.y == this.thresholdY) ? 200 : 500);
+                    this.phi %= Math.PI;
+                }
+                if(this.y <= -this.renderer.height * this.SURFACE_RATE){
+                    this.x += 2;
+                    this.y = -this.renderer.height * this.SURFACE_RATE;
+                }else{
+                    this.x += this.vx;
+                    this.y += this.vy;
+                }
+                return this.z > -this.FOCUS_POSITION && this.z < this.FAR_LIMIT && this.x < this.renderer.width * 1.5;
+            }
+        };
+    </script>
 
     <script>
         class ThreeJSScreensaver {
@@ -710,7 +995,6 @@
                 this.iframeExpandBtn = document.getElementById('iframe-expand-btn');
                 this.iframeCloseBtn = document.getElementById('iframe-close-btn');
                 this.iframeShowcaseCanvas = document.getElementById('iframe-showcase-canvas');
-                this.iframeVisualizerCanvas = document.getElementById('iframe-visualizer-canvas');
                 
                 // iframe状态
                 this.isIframePinned = false;
@@ -726,13 +1010,7 @@
                 this.iframeShowcaseCover = null;
                 this.iframeShowcaseAnimationId = null;
                 
-                // iframe可视化器
-                this.iframeVisualizerScene = null;
-                this.iframeVisualizerCamera = null;
-                this.iframeVisualizerRenderer = null;
-                this.iframeVisualizerBars = [];
-                this.iframeAudioContext = null;
-                this.iframeAnalyzer = null;
+
                 
                 // 从本地存储加载设置
                 this.loadSettings();
@@ -5994,9 +6272,6 @@
                     // 初始化iframe 3D展示台
                     this.initIframeShowcase();
                     
-                    // 初始化iframe音频可视化器
-                    this.initIframeVisualizer();
-                    
                     // 绑定iframe控制按钮事件
                     this.bindIframeEvents();
                     
@@ -6043,80 +6318,59 @@
                 }
             }
             
-            // 初始化iframe音频可视化器
-            initIframeVisualizer() {
+            // 初始化樱花飘落动画
+            initCherryBlossomAnimation() {
                 try {
-                    const canvas = this.iframeVisualizerCanvas;
-                    if (!canvas) return;
-                    
-                    // 创建场景
-                    this.iframeVisualizerScene = new THREE.Scene();
-                    
-                    // 创建相机
-                    this.iframeVisualizerCamera = new THREE.OrthographicCamera(-100, 100, 15, -15, 0.1, 1000);
-                    this.iframeVisualizerCamera.position.z = 100;
-                    
-                    // 创建渲染器
-                    this.iframeVisualizerRenderer = new THREE.WebGLRenderer({
-                        canvas: canvas,
-                        alpha: true,
-                        antialias: true
-                    });
-                    this.iframeVisualizerRenderer.setSize(200, 30);
-                    this.iframeVisualizerRenderer.setClearColor(0x000000, 0);
-                    
-                    // 创建音频条
-                    this.createVisualizerBars();
-                    
-                    console.log('iframe音频可视化器初始化完成');
+                    // 先停止之前的动画
+                    this.stopCherryBlossomAnimation();
+
+                    // 等待jQuery加载完成后初始化樱花飘落动画
+                    if (typeof $ !== 'undefined' && typeof RENDERER !== 'undefined') {
+                        // 确保容器存在
+                        const container = document.getElementById('jsi-cherry-container');
+                        if (container) {
+                            // 清空容器内容
+                            container.innerHTML = '';
+                            // 重新初始化
+                            RENDERER.init();
+                            console.log('樱花飘落动画初始化完成');
+                        } else {
+                            console.warn('樱花飘落动画容器未找到');
+                        }
+                    } else {
+                        console.warn('jQuery或樱花飘落动画脚本未加载');
+                        // 延迟重试
+                        setTimeout(() => {
+                            this.initCherryBlossomAnimation();
+                        }, 100);
+                    }
                 } catch (error) {
-                    console.error('iframe音频可视化器初始化失败:', error);
+                    console.error('樱花飘落动画初始化失败:', error);
+                }
+            }
+
+            // 停止樱花飘落动画
+            stopCherryBlossomAnimation() {
+                try {
+                    if (typeof RENDERER !== 'undefined') {
+                        // 调用RENDERER的stop方法
+                        RENDERER.stop();
+
+                        // 清空容器
+                        const container = document.getElementById('jsi-cherry-container');
+                        if (container) {
+                            container.innerHTML = '';
+                        }
+                        console.log('樱花飘落动画已停止');
+                    }
+                } catch (error) {
+                    console.error('停止樱花飘落动画失败:', error);
                 }
             }
             
-            // 创建可视化器音频条
-            createVisualizerBars() {
-                const barCount = 32;
-                const barWidth = 4;
-                const barSpacing = 2;
-                const totalWidth = barCount * (barWidth + barSpacing) - barSpacing;
-                const startX = -totalWidth / 2;
-                
-                this.iframeVisualizerBars = [];
-                
-                for (let i = 0; i < barCount; i++) {
-                    const geometry = new THREE.BoxGeometry(barWidth, 1, 1);
-                    const material = new THREE.MeshBasicMaterial({
-                        color: new THREE.Color().setHSL(i / barCount, 0.8, 0.6),
-                        transparent: true,
-                        opacity: 0.8
-                    });
-                    
-                    const bar = new THREE.Mesh(geometry, material);
-                    bar.position.x = startX + i * (barWidth + barSpacing);
-                    bar.position.y = 0;
-                    
-                    this.iframeVisualizerScene.add(bar);
-                    this.iframeVisualizerBars.push(bar);
-                }
-            }
+
             
-            // 更新可视化器（模拟音频数据）
-            updateVisualizerBars() {
-                if (!this.iframeVisualizerBars.length) return;
-                
-                const time = Date.now() * 0.005;
-                this.iframeVisualizerBars.forEach((bar, i) => {
-                    // 模拟音频数据的波动
-                    const height = Math.max(0.5, Math.sin(time + i * 0.3) * 0.5 + 0.5 + Math.random() * 0.3) * 15;
-                    bar.scale.y = height;
-                    bar.position.y = height / 2 - 7.5;
-                });
-                
-                if (this.iframeVisualizerRenderer && this.iframeVisualizerScene && this.iframeVisualizerCamera) {
-                    this.iframeVisualizerRenderer.render(this.iframeVisualizerScene, this.iframeVisualizerCamera);
-                }
-            }
+
             
             // 绑定iframe事件
             bindIframeEvents() {
@@ -6166,8 +6420,11 @@
                     this.iframePlayer.classList.add('expanded');
                     this.isIframeExpanded = true;
                     this.iframeExpandBtn.textContent = '⬇️';
+
+                    // 初始化樱花飘落动画
+                    this.initCherryBlossomAnimation();
                 }, 100);
-                
+
                 // 更新封面展示
                 this.updateIframeShowcase(albumData);
                 
@@ -6278,8 +6535,7 @@
                         this.iframeShowcaseCover.rotation.z -= 0.01; // 负值表示向右旋转
                     }
                     
-                    // 更新可视化器
-                    this.updateVisualizerBars();
+
                     
                     // 渲染展示台
                     if (this.iframeShowcaseRenderer && this.iframeShowcaseScene && this.iframeShowcaseCamera) {
@@ -6363,10 +6619,13 @@
             // 关闭iframe播放器
             closeIframePlayer() {
                 console.log('关闭iframe播放器');
-                
+
                 // 停止动画
                 this.stopIframeShowcaseAnimation();
-                
+
+                // 停止樱花飘落动画
+                this.stopCherryBlossomAnimation();
+
                 // 清理iframe内容
                 this.iframeEmbed.src = '';
                 
