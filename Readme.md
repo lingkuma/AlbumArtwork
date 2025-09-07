@@ -33,3 +33,21 @@ Local mode allows you to use image files directly from the local `/cover` direct
 2. Place your album cover image files in the `/cover` folder in the website root directory
 
 3. The system will automatically scan all image files in this directory (supports jpg, jpeg, png, gif, webp, bmp formats)
+
+
+
+## License
+
+MIT
+
+## Reference
+
+https://codepen.io/K-T/pen/qoVmJQ
+three.js
+
+
+
+
+
+
+
