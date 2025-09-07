@@ -6544,61 +6544,98 @@
                 // 先清理可能存在的旧事件监听器
                 this.unbindIframeEvents();
 
-                // 固定按钮
-                this.iframePinBtn.addEventListener('click', () => {
-                    this.toggleIframePin();
-                });
+                // 固定按钮 - 使用命名函数避免重复绑定
+                if (!this.iframePinHandler) {
+                    this.iframePinHandler = () => {
+                        this.toggleIframePin();
+                    };
+                }
+                this.iframePinBtn.addEventListener('click', this.iframePinHandler);
 
                 // 展开/收缩按钮
-                this.iframeExpandBtn.addEventListener('click', () => {
-                    this.toggleIframeExpand();
-                });
+                if (!this.iframeExpandHandler) {
+                    this.iframeExpandHandler = () => {
+                        this.toggleIframeExpand();
+                    };
+                }
+                this.iframeExpandBtn.addEventListener('click', this.iframeExpandHandler);
 
                 // 关闭按钮
-                this.iframeCloseBtn.addEventListener('click', () => {
-                    this.closeIframePlayer();
-                });
+                if (!this.iframeCloseHandler) {
+                    this.iframeCloseHandler = () => {
+                        this.closeIframePlayer();
+                    };
+                }
+                this.iframeCloseBtn.addEventListener('click', this.iframeCloseHandler);
 
                 // 鼠标进入/离开事件
-                this.iframeMouseEnterHandler = () => {
-                    this.onIframeMouseEnter();
-                };
-                this.iframeMouseLeaveHandler = () => {
-                    this.onIframeMouseLeave();
-                };
+                if (!this.iframeMouseEnterHandler) {
+                    this.iframeMouseEnterHandler = () => {
+                        this.onIframeMouseEnter();
+                    };
+                }
+                if (!this.iframeMouseLeaveHandler) {
+                    this.iframeMouseLeaveHandler = () => {
+                        this.onIframeMouseLeave();
+                    };
+                }
 
                 this.iframePlayer.addEventListener('mouseenter', this.iframeMouseEnterHandler);
                 this.iframePlayer.addEventListener('mouseleave', this.iframeMouseLeaveHandler);
+
+                console.log('iframe事件绑定完成');
             }
 
             // 解绑iframe事件
             unbindIframeEvents() {
+                // 解绑鼠标事件
                 if (this.iframeMouseEnterHandler) {
                     this.iframePlayer.removeEventListener('mouseenter', this.iframeMouseEnterHandler);
                 }
                 if (this.iframeMouseLeaveHandler) {
                     this.iframePlayer.removeEventListener('mouseleave', this.iframeMouseLeaveHandler);
                 }
+
+                // 解绑按钮事件
+                if (this.iframePinHandler) {
+                    this.iframePinBtn.removeEventListener('click', this.iframePinHandler);
+                }
+                if (this.iframeExpandHandler) {
+                    this.iframeExpandBtn.removeEventListener('click', this.iframeExpandHandler);
+                }
+                if (this.iframeCloseHandler) {
+                    this.iframeCloseBtn.removeEventListener('click', this.iframeCloseHandler);
+                }
+
+                console.log('iframe事件解绑完成');
             }
             
             // 打开iframe播放器
             openIframePlayer(url, albumData) {
                 console.log('打开iframe播放器:', url, albumData);
-                
+
+                // 检查是否已有播放器打开
+                const isPlayerAlreadyOpen = this.iframePlayer.style.display === 'block';
+                console.log('播放器是否已打开:', isPlayerAlreadyOpen);
+
                 this.currentIframeUrl = url;
                 this.currentAlbumData = albumData;
-                
+
                 // 更新标题和服务信息
                 this.iframeTitle.textContent = albumData.albumTitle || '未知专辑';
                 this.iframeService.textContent = this.getServiceNameFromUrl(url);
-                
+
                 // 显示加载状态
                 this.iframeLoading.style.display = 'block';
                 this.iframeEmbed.style.display = 'none';
-                
+
                 // 显示播放器
                 this.iframePlayer.style.display = 'block';
-                setTimeout(() => {
+
+                // 如果已有播放器打开，直接展开新播放器，避免鼠标悬浮识别问题
+                if (isPlayerAlreadyOpen) {
+                    console.log('已有播放器打开，新播放器直接展开');
+                    this.iframePlayer.classList.remove('collapsed');
                     this.iframePlayer.classList.add('expanded');
                     this.isIframeExpanded = true;
                     this.iframeExpandBtn.innerHTML = `
@@ -6606,14 +6643,27 @@
                             <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
                         </svg>
                     `;
-
-                    // 初始化樱花飘落动画
+                    // 立即初始化樱花飘落动画
                     this.initCherryBlossomAnimation();
-                }, 100);
+                } else {
+                    // 首次打开播放器，使用正常的展开动画
+                    setTimeout(() => {
+                        this.iframePlayer.classList.add('expanded');
+                        this.isIframeExpanded = true;
+                        this.iframeExpandBtn.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                            </svg>
+                        `;
+
+                        // 初始化樱花飘落动画
+                        this.initCherryBlossomAnimation();
+                    }, 100);
+                }
 
                 // 更新封面展示
                 this.updateIframeShowcase(albumData);
-                
+
                 // 加载iframe内容
                 this.loadIframeContent(url);
             }
@@ -6650,11 +6700,15 @@
                     this.iframeLoading.style.display = 'none';
                     iframe.style.display = 'block';
 
-                    // 重新绑定鼠标事件，确保iframe重新加载后鼠标监听正常工作
-                    setTimeout(() => {
-                        this.bindIframeEvents();
-                        console.log('iframe播放器鼠标事件已重新绑定');
-                    }, 100);
+                    // 只在首次加载或事件未绑定时才重新绑定鼠标事件
+                    if (!this.iframeMouseEnterHandler || !this.iframeMouseLeaveHandler) {
+                        setTimeout(() => {
+                            this.bindIframeEvents();
+                            console.log('iframe播放器鼠标事件已重新绑定');
+                        }, 100);
+                    } else {
+                        console.log('iframe播放器鼠标事件已存在，跳过重新绑定');
+                    }
                 };
                 
                 iframe.onerror = (error) => {
@@ -6859,7 +6913,7 @@
                 this.iframePlayer.classList.remove('expanded', 'collapsed');
                 setTimeout(() => {
                     this.iframePlayer.style.display = 'none';
-                }, 400);
+                }, 300);
 
                 // 重置状态
                 this.isIframeExpanded = false;
@@ -6879,6 +6933,13 @@
                 // 清理变量
                 this.currentIframeUrl = null;
                 this.currentAlbumData = null;
+
+                // 清理事件处理器引用
+                this.iframeMouseEnterHandler = null;
+                this.iframeMouseLeaveHandler = null;
+                this.iframePinHandler = null;
+                this.iframeExpandHandler = null;
+                this.iframeCloseHandler = null;
             }
             
             // 鼠标进入iframe
