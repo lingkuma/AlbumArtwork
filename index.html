@@ -2854,7 +2854,7 @@
             playFlipAnimation(cover) {
                 // 检查封面是否正在进行其他动画
                 if (cover.userData.isAnimating) {
-                    console.log('封面正在动画中，跳过翻转动画');
+                    // console.log('封面正在动画中，跳过翻转动画');
                     return;
                 }
 
@@ -3170,7 +3170,7 @@
 
                 if (validTargets.length === 0) {
                     // 如果没有合适的4倍数距离目标，执行普通掉落
-                    console.log('没有找到4倍数距离的目标，执行掉落动画');
+                    // console.log('没有找到4倍数距离的目标，执行掉落动画');
                     this.playDropAnimation(cover);
                     return;
                 }
@@ -3701,7 +3701,7 @@
                 const targetPositions = this.findPinRotationTarget(currentRow, currentCol);
 
                 if (!targetPositions) {
-                    console.log('未找到合适的2x2区域进行图钉旋转，执行普通翻转动画');
+                    // console.log('未找到合适的2x2区域进行图钉旋转，执行普通翻转动画');
                     this.playFlipAnimation(cover);
                     return;
                 }
@@ -3999,7 +3999,7 @@
                     if (!hasCreatedMidReplacement && rotationProgress > 0.4 && rotationProgress < 0.6) {
                         angleOffset = this.createMidReplacementCover(rotatingCover, targetPositions);
                         hasCreatedMidReplacement = true;
-                        console.log('在中间位置下方更换封面');
+                        // console.log('在中间位置下方更换封面');
                     }
 
                     // 应用变换
@@ -4051,7 +4051,7 @@
                     rotatingCover.material.needsUpdate = true;
                     rotatingCover.userData.albumPath = newAlbum;
 
-                    console.log('旋转封面已在中间位置下方更换为新专辑');
+                    // console.log('旋转封面已在中间位置下方更换为新专辑');
                 });
 
                 // 对角线旋转（1->4或4->1，2->3或3->2）需要180度偏移
@@ -4137,7 +4137,7 @@
                 const shouldTriggerChain = Math.random() < 0.8; // 80%的概率触发联动
                 
                 if (!shouldTriggerChain) {
-                    console.log('随机决定不触发联动动画');
+                    // console.log('随机决定不触发联动动画');
                     return;
                 }
                 
