@@ -7059,14 +7059,34 @@
                         return url;
                     }
                     
+                    // Tidal链接转换
+                    if (url.includes('tidal.com/album/')) {
+                        console.log('检测到Tidal链接');
+
+                        // 移除查询参数
+                        const cleanUrl = url.split('?')[0];
+                        console.log('清理后的URL:', cleanUrl);
+
+                        // 检查是否已经是embed格式
+                        if (cleanUrl.includes('embed.tidal.com/albums/')) {
+                            console.log('已经是embed格式');
+                            return url;
+                        }
+
+                        // 转换为embed格式：tidal.com/album/ -> embed.tidal.com/albums/
+                        const embedUrl = cleanUrl.replace('tidal.com/album/', 'embed.tidal.com/albums/');
+                        console.log('转换为embed格式:', embedUrl);
+                        return embedUrl;
+                    }
+
                     // 网易云音乐163链接转换
                     if (url.includes('music.163.com')) {
                         console.log('检测到网易云音乐163链接');
-                        
+
                         // 从URL中提取ID
                         // 例如：https://music.163.com/outchain/player?type=1&id=73257118&auto=1&height=430
                         const idMatch = url.match(/[?&]id=(\d+)/);
-                        
+
                         if (idMatch && idMatch[1]) {
                             const musicId = idMatch[1];
                             const convertedUrl = `https://notion.busiyi.world/music-player/?server=netease&type=album&id=${musicId}&list-max-height=96`;
@@ -7077,7 +7097,7 @@
                             return url;
                         }
                     }
-                    
+
                     // 其他服务暂时返回原URL
                     console.log('其他服务，返回原URL');
                     return url;
