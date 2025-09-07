@@ -171,7 +171,49 @@
             padding-bottom: 5px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
-        
+
+        .settings-warning {
+            display: flex;
+            align-items: flex-start;
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+
+        .settings-warning-icon {
+            font-size: 18px;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+
+        .settings-warning-content {
+            flex: 1;
+        }
+
+        .settings-warning-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #ffc107;
+            margin-bottom: 4px;
+        }
+
+        .settings-warning-text {
+            font-size: 13px;
+            line-height: 1.4;
+            opacity: 0.9;
+        }
+
+        .settings-warning-text a {
+            color: #4a9eff !important;
+            text-decoration: none;
+        }
+
+        .settings-warning-text a:hover {
+            text-decoration: underline;
+        }
+
         .settings-item {
             margin-bottom: 12px;
         }
@@ -477,6 +519,20 @@
     <!-- 设置面板 -->
     <div class="settings-panel" id="settings-panel">
         <div class="settings-section">
+            <div class="settings-section-title" data-text="languageSettings">LanguageSettings</div>
+            <div class="settings-item">
+                <div class="settings-row">
+                    <label class="settings-label" data-text="language">Language</label>
+                    <select class="settings-select" id="language-select">
+                        <option value="auto" data-text="languageAuto">自动</option>
+                        <option value="zh" data-text="languageZh">中文</option>
+                        <option value="en" data-text="languageEn">English</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
             <div class="settings-section-title" data-text="layoutSettings">布局设置</div>
             <div class="settings-item">
                 <div class="settings-row">
@@ -542,24 +598,17 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="settings-section">
-            <div class="settings-section-title" data-text="appearanceSettings">外观设置</div>
-            <div class="settings-item">
-                <div class="settings-row">
-                    <label class="settings-label" data-text="backgroundColor">背景颜色</label>
-                    <input type="color" class="settings-color" id="background-color" value="#000000">
-                </div>
-            </div>
-        </div>
-        
-        <div class="settings-section">
-            <div class="settings-section-title" data-text="functionSettings">功能设置</div>
-            <div class="settings-item">
-                <div class="settings-row">
-                    <label class="settings-label" data-text="desktopMode">桌面模式</label>
-                    <input type="checkbox" id="desktop-mode-toggle">
-                    <span class="settings-description" data-text="desktopModeDesc">启用后只响应三连击左键，适合作为桌面壁纸</span>
+            <div class="settings-section-title" data-text="iframePlayerSettings">内嵌播放器设置</div>
+            <div class="settings-warning">
+                <div class="settings-warning-icon">⚠️</div>
+                <div class="settings-warning-content">
+                    <div class="settings-warning-title" data-text="dependencyWarningTitle">依赖提醒</div>
+                    <div class="settings-warning-text" data-text="dependencyWarningText">
+                        内嵌播放器功能需要安装Chrome扩展程序才能正常工作：
+                        <a href="https://chromewebstore.google.com/detail/gleekbfjekiniecknbkamfmkohkpodhe" target="_blank" style="color: #4a9eff; text-decoration: none;">CORS Unblock</a>
+                    </div>
                 </div>
             </div>
             <div class="settings-item">
@@ -584,6 +633,23 @@
                 </div>
             </div>
         </div>
+
+        <div class="settings-section">
+            <div class="settings-section-title" data-text="functionSettings">功能设置</div>
+            <div class="settings-item">
+                <div class="settings-row">
+                    <label class="settings-label" data-text="desktopMode">桌面模式</label>
+                    <input type="checkbox" id="desktop-mode-toggle">
+                    <span class="settings-description" data-text="desktopModeDesc">启用后只响应三连击左键，适合作为桌面壁纸</span>
+                </div>
+            </div>
+            <div class="settings-item">
+                <div class="settings-row">
+                    <label class="settings-label" data-text="backgroundColor">背景颜色</label>
+                    <input type="color" class="settings-color" id="background-color" value="#000000">
+                </div>
+            </div>
+        </div>
         
         <div id="reset-container" style="text-align: center; margin-top: 20px;"></div>
     </div>
@@ -600,9 +666,21 @@
             </div>
             <div id="jsi-cherry-container" class="container"></div>
             <div class="iframe-controls">
-                <button class="iframe-control-btn" id="iframe-pin-btn" title="固定/取消固定">📌</button>
-                <button class="iframe-control-btn" id="iframe-expand-btn" title="展开/收缩">⬇️</button>
-                <button class="iframe-control-btn" id="iframe-close-btn" title="关闭">✖️</button>
+                <button class="iframe-control-btn" id="iframe-pin-btn" title="固定/取消固定">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .707c-.48.48-1.072.588-1.503.588-.177 0-.335-.018-.46-.039l-3.134 3.134a5.927 5.927 0 0 1 .16 1.013c.046.702-.032 1.687-.72 2.375a.5.5 0 0 1-.707 0l-2.829-2.828-3.182 3.182c-.195.195-.42.195-.615 0-.195-.195-.195-.42 0-.615L5.322 9.335 2.494 6.507a.5.5 0 0 1 0-.707c.688-.688 1.673-.766 2.375-.72a5.922 5.922 0 0 1 1.013.16l3.134-3.133c-.021-.126-.039-.284-.039-.461 0-.431.108-1.023.589-1.503a.5.5 0 0 1 .353-.146z"/>
+                    </svg>
+                </button>
+                <button class="iframe-control-btn" id="iframe-expand-btn" title="展开/收缩">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                    </svg>
+                </button>
+                <button class="iframe-control-btn" id="iframe-close-btn" title="关闭">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
+                    </svg>
+                </button>
             </div>
         </div>
         <div class="iframe-content">
@@ -1096,9 +1174,23 @@
                         rowDrop: '行掉落',
                         appearanceSettings: '外观设置',
                         backgroundColor: '背景颜色',
+                        languageSettings: 'Language Settings',
+                        language: 'Language',
+                        languageAuto: 'Auto',
+                        languageZh: '中文',
+                        languageEn: 'English',
+                        iframePlayerSettings: '内嵌播放器设置',
+                        dependencyWarningTitle: '依赖提醒',
+                        dependencyWarningText: '内嵌播放器功能需要安装Chrome扩展程序才能正常工作：',
                         functionSettings: '功能设置',
                         desktopMode: '桌面模式',
                         desktopModeDesc: '启用后只响应三连击左键，适合作为桌面壁纸',
+                        iframeMode: '在当前页面打开音乐网站',
+                        iframeModeDesc: '启用后点击音乐链接将在内嵌窗口中打开，而不是新标签页',
+                        iframeMusicBrainzMode: '在当前页面打开MusicBrainz',
+                        iframeMusicBrainzModeDesc: '启用后MusicBrainz链接将在内嵌窗口中打开',
+                        iframeListenBrainzMode: '在当前页面打开ListenBrainz',
+                        iframeListenBrainzModeDesc: '启用后ListenBrainz链接将在内嵌窗口中打开',
                         resetAllSettings: '重置所有设置',
                         clearCache: '清除缓存',
                         settingsSaved: '设置已保存',
@@ -1145,9 +1237,23 @@
                         rowDrop: 'Row Drop',
                         appearanceSettings: 'Appearance Settings',
                         backgroundColor: 'Background Color',
+                        languageSettings: 'Language Settings',
+                        language: 'Language',
+                        languageAuto: 'Auto',
+                        languageZh: '中文',
+                        languageEn: 'English',
+                        iframePlayerSettings: 'Embedded Player Settings',
+                        dependencyWarningTitle: 'Dependency Notice',
+                        dependencyWarningText: 'The embedded player requires a Chrome extension to work properly:',
                         functionSettings: 'Function Settings',
                         desktopMode: 'Desktop Mode',
                         desktopModeDesc: 'When enabled, only responds to triple-click, suitable for desktop wallpaper',
+                        iframeMode: 'Open music sites in current page',
+                        iframeModeDesc: 'When enabled, music links will open in embedded window instead of new tab',
+                        iframeMusicBrainzMode: 'Open MusicBrainz in current page',
+                        iframeMusicBrainzModeDesc: 'When enabled, MusicBrainz links will open in embedded window',
+                        iframeListenBrainzMode: 'Open ListenBrainz in current page',
+                        iframeListenBrainzModeDesc: 'When enabled, ListenBrainz links will open in embedded window',
                         resetAllSettings: 'Reset All Settings',
                         clearCache: 'Clear Cache',
                         settingsSaved: 'Settings saved',
@@ -1169,6 +1275,36 @@
                     text = text.replace(`{${param}}`, value);
                 }
                 return text;
+            }
+
+            // 初始化语言设置
+            initLanguage() {
+                // 如果语言设置为auto，则自动检测
+                if (this.language === 'auto') {
+                    this.language = this.detectLanguage();
+                }
+
+                // 重新获取文本
+                this.texts = this.getTexts();
+            }
+
+            // 更新所有文本元素
+            updateAllTexts() {
+                const elementsWithText = document.querySelectorAll('[data-text]');
+                elementsWithText.forEach(element => {
+                    const key = element.getAttribute('data-text');
+                    if (this.texts[key]) {
+                        if (element.tagName === 'OPTION') {
+                            element.textContent = this.texts[key];
+                        } else if (element.classList.contains('settings-warning-text')) {
+                            // 特殊处理依赖提醒文本，保留链接
+                            element.innerHTML = this.texts[key] +
+                                ' <a href="https://chromewebstore.google.com/detail/gleekbfjekiniecknbkamfmkohkpodhe" target="_blank" style="color: #4a9eff; text-decoration: none;">CORS Unblock</a>';
+                        } else {
+                            element.textContent = this.texts[key];
+                        }
+                    }
+                });
             }
 
             // 从URL参数中解析收藏夹ID
@@ -5793,6 +5929,7 @@
             saveSettings() {
                 try {
                     const settings = {
+                        language: this.language || 'auto',
                         gridRows: this.gridRows,
                         gap: this.gap,
                         animationIntervalTime: this.animationIntervalTime,
@@ -5824,6 +5961,7 @@
                         console.log('从本地存储读取到设置:', settings);
                         
                         // 应用保存的设置
+                        if (settings.language !== undefined) this.language = settings.language;
                         if (settings.gridRows !== undefined) this.gridRows = settings.gridRows;
                         if (settings.gap !== undefined) this.gap = settings.gap;
                         if (settings.animationIntervalTime !== undefined) this.animationIntervalTime = settings.animationIntervalTime;
@@ -5848,8 +5986,12 @@
                             gap: this.gap,
                             animationIntervalTime: this.animationIntervalTime,
                             animationWeights: this.animationWeights,
-                            backgroundColor: this.savedBackgroundColor
+                            backgroundColor: this.savedBackgroundColor,
+                            language: this.language
                         });
+
+                        // 重新初始化语言和文本
+                        this.initLanguage();
                     } else {
                         console.log('未找到保存的设置，使用默认值');
                     }
@@ -5860,6 +6002,27 @@
             
             // 初始化设置控件
             initSettingsControls() {
+                // 语言设置
+                const languageSelect = document.getElementById('language-select');
+                languageSelect.value = this.language || 'auto';
+
+                languageSelect.addEventListener('change', () => {
+                    const selectedLanguage = languageSelect.value;
+                    this.language = selectedLanguage;
+
+                    // 保存设置
+                    this.saveSettings();
+
+                    // 重新初始化语言
+                    this.initLanguage();
+
+                    // 更新所有文本
+                    this.updateAllTexts();
+
+                    // 显示状态消息
+                    this.showStatusMessage(this.texts.settingsSaved || '设置已保存');
+                });
+
                 // 行数设置
                 const rowsRange = document.getElementById('rows-range');
                 const rowsValue = document.getElementById('rows-value');
@@ -6438,7 +6601,11 @@
                 setTimeout(() => {
                     this.iframePlayer.classList.add('expanded');
                     this.isIframeExpanded = true;
-                    this.iframeExpandBtn.textContent = '⬇️';
+                    this.iframeExpandBtn.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                        </svg>
+                    `;
 
                     // 初始化樱花飘落动画
                     this.initCherryBlossomAnimation();
@@ -6583,23 +6750,45 @@
             toggleIframePin() {
                 this.isIframePinned = !this.isIframePinned;
                 this.iframePinBtn.classList.toggle('active', this.isIframePinned);
-                
+
                 if (this.isIframePinned) {
-                    this.iframePinBtn.textContent = '📍';
+                    this.iframePinBtn.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M4.146.146A.5.5 0 0 1 4.5 0h7a.5.5 0 0 1 .5.5c0 .68-.342 1.174-.646 1.479-.126.125-.25.224-.354.298v4.431l.078.048c.203.127.476.314.751.555C12.36 7.775 13 8.527 13 9.5a.5.5 0 0 1-.5.5h-4v4.5c0 .276-.224 1.5-.5 1.5s-.5-1.224-.5-1.5V10h-4a.5.5 0 0 1-.5-.5c0-.973.64-1.725 1.17-2.189A5.921 5.921 0 0 1 5 6.708V2.277a2.77 2.77 0 0 1-.354-.298C4.342 1.674 4 1.179 4 .5a.5.5 0 0 1 .146-.354z"/>
+                        </svg>
+                    `;
                     console.log('iframe已固定');
                 } else {
-                    this.iframePinBtn.textContent = '📌';
+                    this.iframePinBtn.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .707c-.48.48-1.072.588-1.503.588-.177 0-.335-.018-.46-.039l-3.134 3.134a5.927 5.927 0 0 1 .16 1.013c.046.702-.032 1.687-.72 2.375a.5.5 0 0 1-.707 0l-2.829-2.828-3.182 3.182c-.195.195-.42.195-.615 0-.195-.195-.195-.42 0-.615L5.322 9.335 2.494 6.507a.5.5 0 0 1 0-.707c.688-.688 1.673-.766 2.375-.72a5.922 5.922 0 0 1 1.013.16l3.134-3.133c-.021-.126-.039-.284-.039-.461 0-.431.108-1.023.589-1.503a.5.5 0 0 1 .353-.146z"/>
+                        </svg>
+                    `;
                     console.log('iframe已取消固定');
                 }
             }
             
             // 切换iframe展开状态
             toggleIframeExpand() {
+                // 设置手动操作标志，防止鼠标事件干扰
+                this.isManualToggle = true;
+
+                // 清除自动收缩定时器，防止手动操作被自动收缩覆盖
+                if (this.iframeMouseLeaveTimer) {
+                    clearTimeout(this.iframeMouseLeaveTimer);
+                    this.iframeMouseLeaveTimer = null;
+                }
+
                 if (this.isIframeExpanded) {
                     this.collapseIframePlayer();
                 } else {
                     this.expandIframePlayer();
                 }
+
+                // 短暂延迟后清除手动操作标志
+                setTimeout(() => {
+                    this.isManualToggle = false;
+                }, 100);
             }
             
             // 展开iframe播放器
@@ -6607,7 +6796,11 @@
                 this.iframePlayer.classList.remove('collapsed');
                 this.iframePlayer.classList.add('expanded');
                 this.isIframeExpanded = true;
-                this.iframeExpandBtn.textContent = '⬇️';
+                this.iframeExpandBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                    </svg>
+                `;
                 console.log('iframe播放器已展开');
             }
             
@@ -6616,7 +6809,12 @@
                 this.iframePlayer.classList.remove('expanded');
                 this.iframePlayer.classList.add('collapsed');
                 this.isIframeExpanded = false;
-                this.iframeExpandBtn.textContent = '⬆️';
+                // 收缩状态显示向上箭头，表示可以展开
+                this.iframeExpandBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M7.646.146a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 1.207 2.354 6.854a.5.5 0 1 1-.708-.708l6-6z"/>
+                    </svg>
+                `;
                 console.log('iframe播放器已收缩');
             }
             
@@ -6667,8 +6865,16 @@
                 this.isIframeExpanded = false;
                 this.isIframePinned = false;
                 this.iframePinBtn.classList.remove('active');
-                this.iframePinBtn.textContent = '📌';
-                this.iframeExpandBtn.textContent = '⬇️';
+                this.iframePinBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .707c-.48.48-1.072.588-1.503.588-.177 0-.335-.018-.46-.039l-3.134 3.134a5.927 5.927 0 0 1 .16 1.013c.046.702-.032 1.687-.72 2.375a.5.5 0 0 1-.707 0l-2.829-2.828-3.182 3.182c-.195.195-.42.195-.615 0-.195-.195-.195-.42 0-.615L5.322 9.335 2.494 6.507a.5.5 0 0 1 0-.707c.688-.688 1.673-.766 2.375-.72a5.922 5.922 0 0 1 1.013.16l3.134-3.133c-.021-.126-.039-.284-.039-.461 0-.431.108-1.023.589-1.503a.5.5 0 0 1 .353-.146z"/>
+                    </svg>
+                `;
+                this.iframeExpandBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M7.646.146a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 1.207 2.354 6.854a.5.5 0 1 1-.708-.708l6-6z"/>
+                    </svg>
+                `;
 
                 // 清理变量
                 this.currentIframeUrl = null;
@@ -6681,7 +6887,12 @@
                     clearTimeout(this.iframeMouseLeaveTimer);
                     this.iframeMouseLeaveTimer = null;
                 }
-                
+
+                // 如果是手动操作，不执行自动展开
+                if (this.isManualToggle) {
+                    return;
+                }
+
                 // 如果当前是收缩状态且未固定，则展开
                 if (!this.isIframeExpanded && !this.isIframePinned) {
                     this.expandIframePlayer();
@@ -6820,7 +7031,10 @@
         // 启动屏保
         window.addEventListener('DOMContentLoaded', () => {
             window.screensaver = new ThreeJSScreensaver();
-            
+
+            // 初始化所有文本显示
+            window.screensaver.updateAllTexts();
+
             // 暴露测试方法到全局，方便调试
             window.test163 = () => window.screensaver.test163Link();
             
