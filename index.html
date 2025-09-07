@@ -2585,7 +2585,7 @@
                     }
                 }
 
-                console.log(`网格创建完成，实际使用了 ${this.usedAlbums.length} 个不同的专辑`);
+                // console.log(`网格创建完成，实际使用了 ${this.usedAlbums.length} 个不同的专辑`);
             }
 
             calculateGridLayout() {
@@ -2610,9 +2610,9 @@
                 this.startX = -actualWidth / 2;
                 this.startY = actualHeight / 2;
 
-                console.log(`网格布局: ${this.gridCols.toFixed(2)}x${this.gridRows}, 封面大小: ${this.coverSize.toFixed(3)}, 间隙: ${this.gap}`);
-                console.log(`视图尺寸: ${viewWidth.toFixed(2)} x ${viewHeight.toFixed(2)}`);
-                console.log(`实际尺寸: ${actualWidth.toFixed(2)} x ${actualHeight.toFixed(2)}`);
+                // console.log(`网格布局: ${this.gridCols.toFixed(2)}x${this.gridRows}, 封面大小: ${this.coverSize.toFixed(3)}, 间隙: ${this.gap}`);
+                // console.log(`视图尺寸: ${viewWidth.toFixed(2)} x ${viewHeight.toFixed(2)}`);
+                // console.log(`实际尺寸: ${actualWidth.toFixed(2)} x ${actualHeight.toFixed(2)}`);
             }
 
             recalculateGrid() {
@@ -3179,7 +3179,7 @@
                 validTargets.sort((a, b) => a.distance - b.distance);
                 const selectedTarget = validTargets[Math.floor(Math.random() * Math.min(3, validTargets.length))];
 
-                console.log(`选择目标: 距离${selectedTarget.distance}步 (${selectedTarget.distance * 90}度)`);
+                // console.log(`选择目标: 距离${selectedTarget.distance}步 (${selectedTarget.distance * 90}度)`);
 
                 // 计算简单直接的路径
                 const path = this.calculateDirectPath(sourceRow, sourceCol, selectedTarget.row, selectedTarget.col);
@@ -3224,7 +3224,7 @@
                     });
                 }
 
-                console.log(`直接路径: ${path.length}步 (${path.length * 90}度旋转)`);
+                // console.log(`直接路径: ${path.length}步 (${path.length * 90}度旋转)`);
                 return path;
             }
 
@@ -3233,7 +3233,7 @@
             executeRollingAnimation(sourceCover, targetCover, path) {
                 // 检查封面是否正在进行其他动画
                 if (sourceCover.userData.isAnimating || targetCover.userData.isAnimating) {
-                    console.log(`滚动动画跳过: 源封面(${sourceCover.userData.row},${sourceCover.userData.col})动画状态=${sourceCover.userData.isAnimating}, 目标封面(${targetCover.userData.row},${targetCover.userData.col})动画状态=${targetCover.userData.isAnimating}`);
+                    // console.log(`滚动动画跳过: 源封面(${sourceCover.userData.row},${sourceCover.userData.col})动画状态=${sourceCover.userData.isAnimating}, 目标封面(${targetCover.userData.row},${targetCover.userData.col})动画状态=${targetCover.userData.isAnimating}`);
                     return;
                 }
 
@@ -3400,7 +3400,7 @@
 
             finishRollingAnimation(sourceCover, targetCover, newSourceCover, originalRow, originalCol, originalIndex, totalRotation) {
                 // 路径是4的倍数，totalRotation应为360的倍数；直接归零
-                console.log(`滚动完成，总旋转: ${totalRotation}度，归零并完成交换`);
+                // console.log(`滚动完成，总旋转: ${totalRotation}度，归零并完成交换`);
 
                 // 立即设置最终状态
                 sourceCover.rotation.z = 0;
@@ -3438,13 +3438,13 @@
                 sourceCover.scale.set(1, 1, 1);
                 sourceCover.material.opacity = 1;
 
-                console.log(`完成：A 点已补上新封面 (${originalRow},${originalCol})，B 点由源封面接管 (${sourceCover.userData.row},${sourceCover.userData.col})`);
+                // console.log(`完成：A 点已补上新封面 (${originalRow},${originalCol})，B 点由源封面接管 (${sourceCover.userData.row},${sourceCover.userData.col})`);
             }
 
             playRollDropAnimation(cover) {
                 // 检查封面是否正在进行其他动画
                 if (cover.userData.isAnimating) {
-                    console.log('封面正在动画中，跳过逐格翻滚动画');
+                    // console.log('封面正在动画中，跳过逐格翻滚动画');
                     return;
                 }
 
@@ -3467,7 +3467,7 @@
                     });
                 }
 
-                console.log(`开始逐格翻滚: 从(${startRow},${startCol})翻滚${rollPath.length}格直到出窗口`);
+                // console.log(`开始逐格翻滚: 从(${startRow},${startCol})翻滚${rollPath.length}格直到出窗口`);
 
                 // 在起始位置创建新封面
                 const newAlbum = this.getRandomAlbum();
@@ -3613,7 +3613,7 @@
             }
 
             finishGridRolling(cover, newCover, startRow, startCol) {
-                console.log(`翻滚完成: 封面已滚出窗口`);
+                // console.log(`翻滚完成: 封面已滚出窗口`);
 
                 // 移除翻滚封面（已经滚出窗口）
                 this.scene.remove(cover);
@@ -3631,7 +3631,7 @@
                     this.covers.push(newCover);
                 }
 
-                console.log(`起始位置(${startRow},${startCol})已放置新封面`);
+                // console.log(`起始位置(${startRow},${startCol})已放置新封面`);
             }
             
             playRowRollDropAnimation() {
@@ -3639,7 +3639,7 @@
                 const upperHalfRows = Math.floor(this.gridRows / 2);
                 const selectedRow = Math.floor(Math.random() * upperHalfRows);
                 
-                console.log(`执行行翻滚动画：选择第 ${selectedRow} 行（从0开始）`);
+                // console.log(`执行行翻滚动画：选择第 ${selectedRow} 行（从0开始）`);
                 
                 // 获取该行的所有封面
                 const rowCovers = this.covers.filter(cover => cover.userData.row === selectedRow);
@@ -3665,7 +3665,7 @@
                 const upperHalfRows = Math.floor(this.gridRows / 2);
                 const selectedRow = Math.floor(Math.random() * upperHalfRows);
                 
-                console.log(`执行行掉落动画：选择第 ${selectedRow} 行（从0开始）`);
+                // console.log(`执行行掉落动画：选择第 ${selectedRow} 行（从0开始）`);
                 
                 // 获取该行的所有封面
                 const rowCovers = this.covers.filter(cover => cover.userData.row === selectedRow);
@@ -3714,7 +3714,7 @@
 
                 // 如果是联动动画，添加联动标记
                 const chainText = chainLevel > 0 ? `[联动${chainLevel}] ` : '';
-                console.log(`${chainText}开始图钉旋转动画: 从位置${current.substring(3)}(${currentRow},${currentCol})旋转到位置${target.substring(3)}(${targetPos.row},${targetPos.col})`);
+                // console.log(`${chainText}开始图钉旋转动画: 从位置${current.substring(3)}(${currentRow},${currentCol})旋转到位置${target.substring(3)}(${targetPos.row},${targetPos.col})`);
 
                 // 执行图钉旋转动画，传递chainLevel参数
                 this.executePinRotation(cover, targetPositions, null, chainLevel);
@@ -3856,7 +3856,7 @@
                 for (const posKey of middlePositions) {
                     if (targetPositions.covers[posKey]) {
                         targetPositions.covers[posKey].position.z = 0.002; // 中间位置稍高
-                        console.log(`设置位置${posKey.substring(3)}的Z轴层级为0.002`);
+                        // console.log(`设置位置${posKey.substring(3)}的Z轴层级为0.002`);
                     }
                 }
 
@@ -4036,7 +4036,7 @@
                 const target = targetPositions.target;
                 
                 // 当旋转封面经过中间位置时，在下方更换封面
-                console.log(`在对角线旋转过程中的中间位置下方更换封面，从${current}到${target}`);
+                // console.log(`在对角线旋转过程中的中间位置下方更换封面，从${current}到${target}`);
 
                 // 确保旋转封面处于较低的Z轴层级，使其在其他封面下方
                 rotatingCover.position.z = -0.001;
@@ -4065,7 +4065,7 @@
                 const current = targetPositions.current;
                 const target = targetPositions.target;
                 
-                console.log(`图钉旋转动画完成，从位置${current.substring(3)}旋转到位置${target.substring(3)}`);
+                // console.log(`图钉旋转动画完成，从位置${current.substring(3)}旋转到位置${target.substring(3)}`);
 
                 // 计算目标位置的精确坐标
                 const targetPosX = this.startX + targetPositions[target].col * (this.coverSize + this.gap) + this.coverSize / 2;
@@ -4105,7 +4105,7 @@
                 for (const posKey of ['pos1', 'pos2', 'pos3', 'pos4']) {
                     if (targetPositions.covers[posKey] && posKey !== current && posKey !== target) {
                         targetPositions.covers[posKey].position.z = 0;
-                        console.log(`重置位置${posKey.substring(3)}的Z轴层级为0`);
+                        // console.log(`重置位置${posKey.substring(3)}的Z轴层级为0`);
                     }
                 }
 
@@ -4113,7 +4113,7 @@
                 rotatingCover.userData.isAnimating = false;
                 newCover.userData.isAnimating = false;
 
-                console.log(`图钉旋转完成: 封面从位置${current.substring(3)}旋转到位置${target.substring(3)}，位置${current.substring(3)}已放置新封面，原位置${target.substring(3)}的封面已被移除`);
+                // console.log(`图钉旋转完成: 封面从位置${current.substring(3)}旋转到位置${target.substring(3)}，位置${current.substring(3)}已放置新封面，原位置${target.substring(3)}的封面已被移除`);
                 
                 // 添加联动动画逻辑
                 // 限制联动层级，避免无限联动
@@ -4151,7 +4151,7 @@
                 
                 // 随机选择一种联动类型
                 const randomChainType = chainTypes[Math.floor(Math.random() * chainTypes.length)];
-                console.log(`选择联动类型: ${randomChainType}`);
+                // console.log(`选择联动类型: ${randomChainType}`);
                 
                 // 根据联动类型触发相应的动画
                 switch (randomChainType) {
@@ -4280,7 +4280,7 @@
                 
                 const chainCover = this.findCoverAtPosition(chainCoverRow, chainCoverCol);
                 if (chainCover && !chainCover.userData.isAnimating) {
-                    console.log(`触发顺势联动: 位置(${chainCoverRow},${chainCoverCol})`);
+                    // console.log(`触发顺势联动: 位置(${chainCoverRow},${chainCoverCol})`);
                     setTimeout(() => {
                         this.playPinRotationAnimation(chainCover, chainLevel + 1);
                     }, 0); // 无延迟，立即触发
@@ -4296,7 +4296,7 @@
                 // 检查下方封面
                 const downCover = this.findCoverAtPosition(row + 1, col);
                 if (downCover && !downCover.userData.isAnimating) {
-                    console.log(`触发向下联动: 位置(${row+1},${col})`);
+                    // console.log(`触发向下联动: 位置(${row+1},${col})`);
                     setTimeout(() => {
                         this.playPinRotationAnimation(downCover, chainLevel + 1);
                     }, 0); // 无延迟，立即触发
@@ -4323,7 +4323,7 @@
                 
                 const fallCover = this.findCoverAtPosition(fallCoverRow, fallCoverCol);
                 if (fallCover && !fallCover.userData.isAnimating) {
-                    console.log(`触发飘落动画: 位置(${fallCoverRow},${fallCoverCol})`);
+                    // console.log(`触发飘落动画: 位置(${fallCoverRow},${fallCoverCol})`);
                     setTimeout(() => {
                         // 随机选择飘落或滚动下落动画
                         const fallAnimationType = Math.random() < 0.5 ? 'drop' : 'rollDrop';
@@ -5757,7 +5757,7 @@
             toggleFullscreen() {
                 if (!document.fullscreenElement) {
                     document.documentElement.requestFullscreen().catch(err => {
-                        console.log(`无法进入全屏模式: ${err.message}`);
+                        // console.log(`无法进入全屏模式: ${err.message}`);
                     });
                 } else {
                     document.exitFullscreen();
