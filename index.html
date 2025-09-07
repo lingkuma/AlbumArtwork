@@ -1009,6 +1009,10 @@
                 this.iframeShowcaseRenderer = null;
                 this.iframeShowcaseCover = null;
                 this.iframeShowcaseAnimationId = null;
+
+                // iframe事件处理器
+                this.iframeMouseEnterHandler = null;
+                this.iframeMouseLeaveHandler = null;
                 
 
                 
@@ -6374,29 +6378,44 @@
             
             // 绑定iframe事件
             bindIframeEvents() {
+                // 先清理可能存在的旧事件监听器
+                this.unbindIframeEvents();
+
                 // 固定按钮
                 this.iframePinBtn.addEventListener('click', () => {
                     this.toggleIframePin();
                 });
-                
+
                 // 展开/收缩按钮
                 this.iframeExpandBtn.addEventListener('click', () => {
                     this.toggleIframeExpand();
                 });
-                
+
                 // 关闭按钮
                 this.iframeCloseBtn.addEventListener('click', () => {
                     this.closeIframePlayer();
                 });
-                
+
                 // 鼠标进入/离开事件
-                this.iframePlayer.addEventListener('mouseenter', () => {
+                this.iframeMouseEnterHandler = () => {
                     this.onIframeMouseEnter();
-                });
-                
-                this.iframePlayer.addEventListener('mouseleave', () => {
+                };
+                this.iframeMouseLeaveHandler = () => {
                     this.onIframeMouseLeave();
-                });
+                };
+
+                this.iframePlayer.addEventListener('mouseenter', this.iframeMouseEnterHandler);
+                this.iframePlayer.addEventListener('mouseleave', this.iframeMouseLeaveHandler);
+            }
+
+            // 解绑iframe事件
+            unbindIframeEvents() {
+                if (this.iframeMouseEnterHandler) {
+                    this.iframePlayer.removeEventListener('mouseenter', this.iframeMouseEnterHandler);
+                }
+                if (this.iframeMouseLeaveHandler) {
+                    this.iframePlayer.removeEventListener('mouseleave', this.iframeMouseLeaveHandler);
+                }
             }
             
             // 打开iframe播放器
@@ -6463,6 +6482,12 @@
                     clearTimeout(loadTimeout);
                     this.iframeLoading.style.display = 'none';
                     iframe.style.display = 'block';
+
+                    // 重新绑定鼠标事件，确保iframe重新加载后鼠标监听正常工作
+                    setTimeout(() => {
+                        this.bindIframeEvents();
+                        console.log('iframe播放器鼠标事件已重新绑定');
+                    }, 100);
                 };
                 
                 iframe.onerror = (error) => {
@@ -6626,22 +6651,25 @@
                 // 停止樱花飘落动画
                 this.stopCherryBlossomAnimation();
 
+                // 解绑事件监听器
+                this.unbindIframeEvents();
+
                 // 清理iframe内容
                 this.iframeEmbed.src = '';
-                
+
                 // 隐藏播放器
                 this.iframePlayer.classList.remove('expanded', 'collapsed');
                 setTimeout(() => {
                     this.iframePlayer.style.display = 'none';
                 }, 400);
-                
+
                 // 重置状态
                 this.isIframeExpanded = false;
                 this.isIframePinned = false;
                 this.iframePinBtn.classList.remove('active');
                 this.iframePinBtn.textContent = '📌';
                 this.iframeExpandBtn.textContent = '⬇️';
-                
+
                 // 清理变量
                 this.currentIframeUrl = null;
                 this.currentAlbumData = null;
@@ -6668,7 +6696,7 @@
                         if (this.isIframeExpanded) {
                             this.collapseIframePlayer();
                         }
-                    }, 1000); // 1秒后收缩
+                    }, 400); // 1秒后收缩
                 }
             }
 
