@@ -2948,7 +2948,7 @@
                     },
                     undefined,
                     (err) => {
-                        console.warn('翻转新纹理加载失败:', err);
+                        // console.warn('翻转新纹理加载失败:', err);
                         cover.userData.isAnimating = false;
                     }
                 );
@@ -2957,7 +2957,7 @@
             playDropAnimation(cover) {
                 // 检查封面是否正在进行其他动画
                 if (cover.userData.isAnimating) {
-                    console.log('封面正在动画中，跳过掉落动画');
+                    // console.log('封面正在动画中，跳过掉落动画');
                     return;
                 }
 
@@ -3689,7 +3689,7 @@
             playPinRotationAnimation(cover, chainLevel = 0) {
                 // 检查封面是否正在进行其他动画
                 if (cover.userData.isAnimating) {
-                    console.log('封面正在动画中，跳过图钉旋转动画');
+                    // console.log('封面正在动画中，跳过图钉旋转动画');
                     return;
                 }
 
