@@ -39,6 +39,8 @@ hide the list that not contain @ or #
 https://open.spotify.com/user/
 https://album-artwork.vercel.app/?SP=22kqa4f54gtlofehc4gi5a5ly
 
+## problem 
+10 only. To get more, a host server is needed.
 
 
 # Local Cover Art
