@@ -17,6 +17,22 @@ https://musicbrainz.org/collection/8ac56a60-c667-4603-817e-793f0d2600b8
 https://musicbrainz.org/collection/8bd472fd-b961-4c59-95f1-26521b072a63
 
 
+# YouTube / YouTube Music 开放歌单
+
+## example
+https://album-artwork.vercel.app/?YT=@nara.asmr.&YT=@asmrcham&YT=@CoromoSaraASMR
+
+## Name fillter: 
+if name contain "@", it's youtube music
+if name contain "#", it's youtube
+if name not contain any , it's vill be default to show as youtube
+
+
+
+## settings
+hide the list that not contain @ or #           
+
+
 # 本地封面
 
 ## 简介

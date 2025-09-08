@@ -351,7 +351,7 @@
             background: rgba(20, 20, 20, 0.95);
             backdrop-filter: blur(15px);
             border-radius: 20px 20px 0 0;
-            z-index: 2000;
+            z-index: 200000;
             transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
             display: flex;
@@ -647,6 +647,17 @@
                 <div class="settings-row">
                     <label class="settings-label" data-text="backgroundColor">背景颜色</label>
                     <input type="color" class="settings-color" id="background-color" value="#000000">
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <div class="settings-section-title" data-text="youtubeSettings">YouTube设置</div>
+            <div class="settings-item">
+                <div class="settings-row">
+                    <label class="settings-label" data-text="youtubeFilterMode">过滤无符号播放列表</label>
+                    <input type="checkbox" id="youtube-filter-toggle">
+                    <span class="settings-description" data-text="youtubeFilterModeDesc">启用后只显示包含@或#符号的播放列表，禁用后将无符号播放列表视为YouTube播放列表</span>
                 </div>
             </div>
         </div>
@@ -1012,6 +1023,16 @@
                 this.lastApiCallTime = 0; // 用于API调用节流
                 // this.cacheExpiry = 24 * 60 * 60 * 1000; // 24小时过期 - 已移除过期时间，缓存永久有效
 
+                // YouTube 相关
+                this.youtubeChannelIds = this.parseYouTubeChannelIdsFromUrl();
+                // 请在Google Cloud Console申请YouTube Data API v3密钥
+                // 1. 访问 https://console.cloud.google.com/
+                // 2. 创建项目或选择现有项目
+                // 3. 启用YouTube Data API v3
+                // 4. 创建API密钥
+                this.youtubeApiKey = 'AIzaSyA9R9tejDnqsQFnz6GYP7xMeu4HdPMscrc'; // 请替换为你的YouTube Data API密钥
+                this.youtubePlaylistCache = new Map(); // YouTube歌单缓存
+
                 // Three.js 相关
                 this.scene = null;
                 this.camera = null;
@@ -1063,6 +1084,9 @@
                 this.iframeModeEnabled = false;
                 this.iframeMusicBrainzModeEnabled = false;
                 this.iframeListenBrainzModeEnabled = false;
+
+                // YouTube相关设置
+                this.youtubeFilterEnabled = false; // 默认不过滤，显示所有播放列表
                 this.iframePlayer = document.getElementById('iframe-player');
                 this.iframeEmbed = document.getElementById('iframe-embed');
                 this.iframeLoading = document.getElementById('iframe-loading');
@@ -1185,6 +1209,9 @@
                         functionSettings: '功能设置',
                         desktopMode: '桌面模式',
                         desktopModeDesc: '启用后只响应三连击左键，适合作为桌面壁纸',
+                        youtubeSettings: 'YouTube设置',
+                        youtubeFilterMode: '过滤无符号播放列表',
+                        youtubeFilterModeDesc: '启用后只显示包含@或#符号的播放列表，禁用后将无符号播放列表视为YouTube播放列表',
                         iframeMode: '在当前页面打开音乐网站',
                         iframeModeDesc: '启用后点击音乐链接将在内嵌窗口中打开，而不是新标签页',
                         iframeMusicBrainzMode: '在当前页面打开MusicBrainz',
@@ -1248,6 +1275,9 @@
                         functionSettings: 'Function Settings',
                         desktopMode: 'Desktop Mode',
                         desktopModeDesc: 'When enabled, only responds to triple-click, suitable for desktop wallpaper',
+                        youtubeSettings: 'YouTube Settings',
+                        youtubeFilterMode: 'Filter playlists without symbols',
+                        youtubeFilterModeDesc: 'When enabled, only shows playlists with @ or # symbols. When disabled, treats playlists without symbols as YouTube playlists',
                         iframeMode: 'Open music sites in current page',
                         iframeModeDesc: 'When enabled, music links will open in embedded window instead of new tab',
                         iframeMusicBrainzMode: 'Open MusicBrainz in current page',
@@ -1323,10 +1353,32 @@
                     console.log(`从URL参数获取到 ${ids.length} 个收藏夹ID:`, ids);
                     return ids;
                 } else {
-                    // 如果没有URL参数，使用默认收藏夹ID
+                    // 检查是否有YouTube参数
+                    const ytIds = urlParams.getAll('YT');
+                    if (ytIds.length > 0) {
+                        console.log('检测到YouTube参数，不使用默认MusicBrainz ID');
+                        return [];
+                    }
+
+                    // 只有在没有任何数据源时才使用默认收藏夹ID
                     const defaultId = '8ac56a60-c667-4603-817e-793f0d2600b8';
-                    console.log('使用默认收藏夹ID:', defaultId);
+                    console.log('没有找到任何数据源参数，使用默认收藏夹ID:', defaultId);
                     return [defaultId];
+                }
+            }
+
+            // 从URL参数中解析YouTube频道ID或用户名
+            parseYouTubeChannelIdsFromUrl() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const ytIds = urlParams.getAll('YT'); // 获取所有YT参数
+
+                if (ytIds.length > 0) {
+                    console.log(`从URL参数获取到 ${ytIds.length} 个YouTube频道标识:`, ytIds);
+                    console.log('支持格式: 频道ID (UC...) 或用户名 (@username)');
+                    return ytIds;
+                } else {
+                    console.log('没有找到YouTube频道参数');
+                    return [];
                 }
             }
 
@@ -1355,34 +1407,52 @@
                         // 有缓存：使用缓存
                         console.log('使用缓存的专辑列表');
                         this.updateLoadingMessage(this.texts.loadingCovers);
-                        
+
                         // 使用缓存的专辑列表
                         await this.loadAlbumsFromCache();
-                        
-                        // 在后台获取最新的专辑列表并比对
-                        this.checkForAlbumsUpdate();
-                    } else {
-                        // 无缓存且非本地模式：获取MusicBrainz数据
-                        console.log('没有缓存的专辑列表，从 MusicBrainz 获取');
-                        // 最多尝试3次
-                        let retryCount = 0;
-                        const maxRetries = 3;
-                        let success = false;
-                        
-                        while (retryCount < maxRetries && !success) {
+
+                        // 如果有YouTube频道ID，额外获取YouTube数据
+                        if (this.youtubeChannelIds.length > 0) {
+                            console.log('检测到YouTube频道ID，获取YouTube歌单数据');
                             try {
-                                await this.loadAlbumsFromMusicBrainz();
-                                success = true;
+                                await this.loadAlbumsFromYouTube();
                             } catch (error) {
-                                retryCount++;
-                                console.warn(`从 MusicBrainz 获取专辑失败 (尝试 ${retryCount}/${maxRetries})`, error);
-                                if (retryCount < maxRetries) {
-                                    // 等待一段时间后重试
-                                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-                                    console.log(`重试获取 MusicBrainz 数据 (${retryCount}/${maxRetries})...`);
+                                console.warn('获取YouTube数据失败:', error.message);
+                                // 显示用户友好的错误提示
+                                if (error.message.includes('API密钥')) {
+                                    this.showStatusMessage('YouTube API密钥未设置，跳过YouTube歌单获取');
+                                } else {
+                                    this.showStatusMessage('获取YouTube歌单失败，请检查网络连接');
                                 }
                             }
                         }
+
+                        // 在后台获取最新的专辑列表并比对
+                        this.checkForAlbumsUpdate();
+                    } else {
+                        // 无缓存且非本地模式：获取数据
+                        console.log('没有缓存的专辑列表，开始获取数据');
+
+                        // 并行获取MusicBrainz和YouTube数据
+                        const promises = [];
+
+                        // 如果有MusicBrainz收藏夹ID，添加MusicBrainz任务
+                        if (this.musicBrainzCollectionIds.length > 0) {
+                            promises.push(this.loadAlbumsFromMusicBrainzWithRetry());
+                        }
+
+                        // 如果有YouTube频道ID，添加YouTube任务
+                        if (this.youtubeChannelIds.length > 0) {
+                            promises.push(this.loadAlbumsFromYouTube());
+                        }
+
+                        // 如果没有任何数据源，使用默认MusicBrainz
+                        if (promises.length === 0) {
+                            promises.push(this.loadAlbumsFromMusicBrainzWithRetry());
+                        }
+
+                        // 等待所有数据源完成
+                        await Promise.all(promises);
                     }
 
                     // 如果专辑列表仍为空，尝试使用本地备份
@@ -1664,6 +1734,29 @@
                 return allReleases;
             }
             
+            // 从 MusicBrainz 收藏栏加载专辑（带重试机制）
+            async loadAlbumsFromMusicBrainzWithRetry() {
+                // 最多尝试3次
+                let retryCount = 0;
+                const maxRetries = 3;
+                let success = false;
+
+                while (retryCount < maxRetries && !success) {
+                    try {
+                        await this.loadAlbumsFromMusicBrainz();
+                        success = true;
+                    } catch (error) {
+                        retryCount++;
+                        console.warn(`从 MusicBrainz 获取专辑失败 (尝试 ${retryCount}/${maxRetries})`, error);
+                        if (retryCount < maxRetries) {
+                            // 等待一段时间后重试
+                            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+                            console.log(`重试获取 MusicBrainz 数据 (${retryCount}/${maxRetries})...`);
+                        }
+                    }
+                }
+            }
+
             // 从 MusicBrainz 收藏栏加载专辑
             async loadAlbumsFromMusicBrainz() {
                 try {
@@ -1673,17 +1766,17 @@
 
                     // 从所有收藏栏获取专辑列表
                     const allReleases = await this.fetchAllReleases();
-                    
+
                     // 保存专辑列表到缓存
                     this.saveAlbumsCache(allReleases);
-                    
+
                     console.log(`合并后共获取到 ${allReleases.length} 个不重复专辑`);
                     this.updateLoadingMessage(this.texts.loadingCovers);
 
                     // 获取每个专辑的封面 - 使用并发请求
                     let loadedCount = 0;
                     const totalCount = allReleases.length;
-                    
+
                     // 并发加载封面，每批次15个
                     const batchSize = 15;
                     for (let i = 0; i < totalCount; i += batchSize) {
@@ -1692,7 +1785,7 @@
                             // 对每个封面添加重试机制
                             let retryCount = 0;
                             const maxRetries = 2;
-                            
+
                             while (retryCount <= maxRetries) {
                                 try {
                                     const coverUrl = await this.getCoverArt(release.id);
@@ -1715,10 +1808,10 @@
                             }
                             return 0;
                         });
-                        
+
                         // 等待当前批次完成
                         await Promise.all(promises);
-                        
+
                         // 更新加载进度
                         this.updateLoadingMessage(
                             this.texts.loadingCovers,
@@ -1820,6 +1913,307 @@
                 });
                 
                 return url;
+            }
+
+            // 从 YouTube 频道加载歌单封面
+            async loadAlbumsFromYouTube() {
+                try {
+                    this.updateLoadingMessage(`正在获取 ${this.youtubeChannelIds.length} 个YouTube频道的歌单...`);
+
+                    // 获取所有频道的歌单
+                    const allPlaylists = [];
+                    for (const channelId of this.youtubeChannelIds) {
+                        try {
+                            const playlists = await this.fetchYouTubeChannelPlaylists(channelId);
+                            console.log(`从YouTube频道 ${channelId} 获取到 ${playlists.length} 个歌单`);
+
+                            // 过滤出可能是音乐相关的播放列表
+                            const musicPlaylists = this.filterMusicPlaylists(playlists);
+                            console.log(`过滤后保留 ${musicPlaylists.length} 个音乐相关歌单`);
+
+                            allPlaylists.push(...musicPlaylists);
+                        } catch (error) {
+                            console.warn(`获取YouTube频道 ${channelId} 失败:`, error);
+                        }
+                    }
+
+                    console.log(`合并后共获取到 ${allPlaylists.length} 个YouTube歌单`);
+                    this.updateLoadingMessage('正在加载YouTube歌单封面...');
+
+                    // 获取每个歌单的封面
+                    let loadedCount = 0;
+                    const totalCount = allPlaylists.length;
+
+                    // 并发加载封面，每批次10个
+                    const batchSize = 10;
+                    for (let i = 0; i < totalCount; i += batchSize) {
+                        const batch = allPlaylists.slice(i, i + batchSize);
+                        const promises = batch.map(async (playlist) => {
+                            try {
+                                // 尝试获取更好的封面：先获取播放列表的第一个视频，然后使用其缩略图
+                                let coverUrl = null;
+
+                                try {
+                                    // 获取播放列表中的第一个视频
+                                    const firstVideo = await this.getPlaylistFirstVideo(playlist.id);
+                                    if (firstVideo && firstVideo.snippet && firstVideo.snippet.thumbnails) {
+                                        // 使用视频的高质量缩略图
+                                        coverUrl = firstVideo.snippet.thumbnails.maxres?.url ||
+                                                  firstVideo.snippet.thumbnails.high?.url ||
+                                                  firstVideo.snippet.thumbnails.medium?.url ||
+                                                  firstVideo.snippet.thumbnails.default?.url;
+                                    }
+                                } catch (videoError) {
+                                    console.warn(`获取播放列表 ${playlist.id} 首个视频失败:`, videoError);
+                                }
+
+                                // 如果获取视频缩略图失败，回退到播放列表缩略图
+                                if (!coverUrl) {
+                                    coverUrl = playlist.snippet.thumbnails.high?.url ||
+                                               playlist.snippet.thumbnails.medium?.url ||
+                                               playlist.snippet.thumbnails.default?.url;
+                                }
+
+                                if (coverUrl) {
+                                    this.albums.push(coverUrl);
+                                    // 存储YouTube歌单链接和详细信息
+                                    this.albumUrls[coverUrl] = `https://music.youtube.com/playlist?list=${playlist.id}`;
+                                    // 存储歌单详细信息，用于对话框显示
+                                    this.albumUrls[coverUrl + '_playlist_data'] = {
+                                        id: playlist.id,
+                                        title: playlist.snippet.title,
+                                        description: playlist.snippet.description,
+                                        channelTitle: playlist.snippet.channelTitle
+                                    };
+                                    loadedCount++;
+                                    return 1;
+                                }
+                                return 0;
+                            } catch (error) {
+                                console.warn(`无法加载YouTube歌单封面: ${playlist.snippet?.title || playlist.id}`, error);
+                                return 0;
+                            }
+                        });
+
+                        // 等待当前批次完成
+                        await Promise.all(promises);
+
+                        // 更新加载进度
+                        this.updateLoadingMessage(
+                            '正在加载YouTube歌单封面...',
+                            `${loadedCount}/${totalCount}`
+                        );
+                    }
+
+                    console.log(`✅ 成功加载 ${loadedCount} 张YouTube歌单封面`);
+
+                } catch (error) {
+                    console.error('❌ 从 YouTube 加载歌单失败:', error.message);
+                    throw error;
+                }
+            }
+
+            // 将YouTube用户名转换为频道ID
+            async resolveYouTubeChannelId(input) {
+                // 如果已经是频道ID格式（UC开头），直接返回
+                if (input.startsWith('UC') && input.length === 24) {
+                    return input;
+                }
+
+                // 如果是用户名格式（@开头），需要通过API转换
+                if (input.startsWith('@')) {
+                    const username = input.substring(1); // 移除@符号
+
+                    if (!this.youtubeApiKey || this.youtubeApiKey === 'YOUR_YOUTUBE_API_KEY_HERE') {
+                        throw new Error('YouTube API密钥未设置，无法解析用户名');
+                    }
+
+                    try {
+                        // 使用channels API通过handle获取频道信息（新的API方式）
+                        const apiUrl = `https://www.googleapis.com/youtube/v3/channels?part=id&forHandle=${username}&key=${this.youtubeApiKey}`;
+                        console.log(`尝试通过handle解析: ${apiUrl}`);
+                        const response = await fetch(apiUrl);
+
+                        if (!response.ok) {
+                            console.warn(`forHandle方式失败: ${response.status}`);
+                            // 如果forHandle失败，尝试search API作为备选方案
+                            return await this.searchChannelByUsername(username);
+                        }
+
+                        const data = await response.json();
+
+                        if (data.items && data.items.length > 0) {
+                            const channelId = data.items[0].id;
+                            console.log(`用户名 ${input} 通过handle解析为频道ID: ${channelId}`);
+                            return channelId;
+                        } else {
+                            console.warn(`forHandle未找到结果，尝试search方式`);
+                            // 如果没有结果，尝试search API
+                            return await this.searchChannelByUsername(username);
+                        }
+                    } catch (error) {
+                        console.error(`解析用户名 ${input} 失败:`, error);
+                        // 最后尝试search API
+                        try {
+                            return await this.searchChannelByUsername(username);
+                        } catch (searchError) {
+                            throw new Error(`无法解析用户名 ${input}: ${error.message}`);
+                        }
+                    }
+                }
+
+                // 其他格式直接返回，假设是有效的频道ID
+                return input;
+            }
+
+            // 通过搜索API查找频道（备选方案）
+            async searchChannelByUsername(username) {
+                try {
+                    // 使用search API搜索频道
+                    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(username)}&maxResults=10&key=${this.youtubeApiKey}`;
+                    console.log(`尝试通过search搜索频道: ${username}`);
+
+                    const response = await fetch(searchUrl);
+
+                    if (!response.ok) {
+                        throw new Error(`搜索API失败: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+
+                    if (data.items && data.items.length > 0) {
+                        // 查找最匹配的频道
+                        for (const item of data.items) {
+                            const channelTitle = item.snippet.title.toLowerCase();
+                            const searchTerm = username.toLowerCase();
+
+                            // 简单的匹配逻辑：频道标题包含搜索词
+                            if (channelTitle.includes(searchTerm) || searchTerm.includes(channelTitle.replace(/\s+/g, ''))) {
+                                const channelId = item.snippet.channelId;
+                                console.log(`通过搜索找到匹配频道: ${item.snippet.title} (${channelId})`);
+                                return channelId;
+                            }
+                        }
+
+                        // 如果没有完全匹配，返回第一个结果
+                        const channelId = data.items[0].snippet.channelId;
+                        console.log(`使用搜索结果中的第一个频道: ${data.items[0].snippet.title} (${channelId})`);
+                        return channelId;
+                    } else {
+                        throw new Error(`搜索未找到匹配的频道`);
+                    }
+                } catch (error) {
+                    console.error(`搜索频道失败:`, error);
+                    throw error;
+                }
+            }
+
+            // 获取YouTube频道的公开歌单
+            async fetchYouTubeChannelPlaylists(channelInput) {
+                // 检查API密钥是否已设置
+                if (!this.youtubeApiKey || this.youtubeApiKey === 'YOUR_YOUTUBE_API_KEY_HERE') {
+                    throw new Error('YouTube API密钥未设置。请在Google Cloud Console申请YouTube Data API v3密钥并替换代码中的YOUR_YOUTUBE_API_KEY_HERE');
+                }
+
+                // 解析频道ID
+                const channelId = await this.resolveYouTubeChannelId(channelInput);
+
+                const apiUrl = `https://www.googleapis.com/youtube/v3/playlists?part=snippet&channelId=${channelId}&maxResults=50&key=${this.youtubeApiKey}`;
+
+                try {
+                    console.log(`正在获取YouTube频道 ${channelInput} (${channelId}) 的歌单...`);
+                    const response = await fetch(apiUrl);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('YouTube API响应错误:', errorText);
+
+                        if (response.status === 400) {
+                            throw new Error(`YouTube API密钥无效或请求格式错误 (${response.status})`);
+                        } else if (response.status === 403) {
+                            throw new Error(`YouTube API配额已用完或权限不足 (${response.status})`);
+                        } else {
+                            throw new Error(`YouTube API错误: ${response.status} ${response.statusText}`);
+                        }
+                    }
+
+                    const data = await response.json();
+
+                    if (data.error) {
+                        console.error('YouTube API返回错误:', data.error);
+                        throw new Error(`YouTube API错误: ${data.error.message}`);
+                    }
+
+                    console.log(`成功获取到 ${data.items?.length || 0} 个歌单`);
+                    return data.items || [];
+                } catch (error) {
+                    console.error(`获取YouTube频道 ${channelInput} 歌单失败:`, error);
+                    throw error;
+                }
+            }
+
+            // 过滤出音乐相关的播放列表（基于名称中的符号和设置）
+            filterMusicPlaylists(playlists) {
+                // 使用实例变量而不是DOM元素
+                const shouldFilter = this.youtubeFilterEnabled || false;
+
+                console.log(`YouTube过滤设置: ${shouldFilter ? '启用' : '禁用'}`);
+
+                if (!shouldFilter) {
+                    // 如果禁用过滤，将所有无符号的播放列表视为YouTube播放列表
+                    console.log('禁用过滤模式：将无符号播放列表标记为YouTube播放列表');
+                    return playlists.map(playlist => {
+                        const title = playlist.snippet.title;
+                        // 如果没有符号，添加#符号标记为YouTube
+                        if (!title.includes('@') && !title.includes('#')) {
+                            console.log(`为播放列表添加#符号: ${title}`);
+                            playlist.snippet.title = title + ' #';
+                        }
+                        return playlist;
+                    });
+                }
+
+                // 启用过滤时，只保留名称中包含"@"（YouTube Music）或"#"（YouTube）符号的播放列表
+                console.log('启用过滤模式：只显示有符号的播放列表');
+                const filtered = playlists.filter(playlist => {
+                    const title = playlist.snippet.title;
+                    const hasSymbol = title.includes('@') || title.includes('#');
+                    if (!hasSymbol) {
+                        console.log(`过滤掉无符号播放列表: ${title}`);
+                    }
+                    return hasSymbol;
+                });
+
+                console.log(`过滤结果: ${filtered.length}/${playlists.length} 个播放列表保留`);
+                return filtered;
+            }
+
+            // 获取播放列表的第一个视频（用于获取更好的封面）
+            async getPlaylistFirstVideo(playlistId) {
+                if (!this.youtubeApiKey || this.youtubeApiKey === 'YOUR_YOUTUBE_API_KEY_HERE') {
+                    return null;
+                }
+
+                const apiUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${playlistId}&maxResults=1&key=${this.youtubeApiKey}`;
+
+                try {
+                    const response = await fetch(apiUrl);
+
+                    if (!response.ok) {
+                        return null; // 静默失败，回退到播放列表缩略图
+                    }
+
+                    const data = await response.json();
+
+                    if (data.error || !data.items || data.items.length === 0) {
+                        return null;
+                    }
+
+                    return data.items[0];
+                } catch (error) {
+                    console.warn(`获取播放列表 ${playlistId} 首个视频失败:`, error);
+                    return null;
+                }
             }
 
             async loadAlbumsFromBackup() {
@@ -2575,7 +2969,14 @@
             cleanupShowcase() {
                 try {
                     console.log('开始清理展示台资源');
-                    
+
+                    // 清理YouTube对话框的3D展示台
+                    const youtubeContainer = document.getElementById('iframe-showcase-container');
+                    if (youtubeContainer && youtubeContainer._cleanup) {
+                        youtubeContainer._cleanup();
+                        youtubeContainer._cleanup = null;
+                    }
+
                     // 停止动画循环
                     this.stopShowcaseAnimation();
                     
@@ -4606,18 +5007,26 @@
                     const url = this.albumUrls[albumPath];
 
                     if (url) {
-                        // 获取MusicBrainz ID
-                        const mbid = this.extractMusicBrainzId(url);
-                        if (mbid) {
-                            // 获取并显示外部链接，传递专辑路径
-                            this.openExternalLinks(mbid, albumPath);
+                        // 检查是否是YouTube歌单链接
+                        if (url.includes('music.youtube.com/playlist') || url.includes('youtube.com/playlist')) {
+                            // 获取存储的歌单数据
+                            const playlistData = this.albumUrls[albumPath + '_playlist_data'];
+                            // YouTube歌单：显示详细对话框
+                            this.showYouTubePlaylistDialog(url, albumPath, playlistData);
                         } else {
-                            // 如果无法提取MBID，则只打开原始URL
-                            window.open(url, '_blank');
-                            // 复制URL到剪贴板
-                            this.copyToClipboard(url);
+                            // MusicBrainz链接：获取MusicBrainz ID
+                            const mbid = this.extractMusicBrainzId(url);
+                            if (mbid) {
+                                // 获取并显示外部链接，传递专辑路径
+                                this.openExternalLinks(mbid, albumPath);
+                            } else {
+                                // 如果无法提取MBID，则只打开原始URL
+                                window.open(url, '_blank');
+                                // 复制URL到剪贴板
+                                this.copyToClipboard(url);
+                            }
                         }
-                        
+
                         // 显示点击反馈
                         this.showClickFeedback(clickedCover);
                     }
@@ -4628,6 +5037,543 @@
             extractMusicBrainzId(url) {
                 // 例如：https://musicbrainz.org/release/59211ea4-ffd2-4ad9-9a4e-941d3148024a
                 const match = url.match(/musicbrainz\.org\/release\/([a-f0-9-]+)/i);
+                return match ? match[1] : null;
+            }
+
+            // 显示YouTube歌单对话框
+            async showYouTubePlaylistDialog(playlistUrl, albumPath, playlistData = null) {
+                // 移除可能已存在的对话框
+                const existingDialog = document.getElementById('links-dialog');
+                if (existingDialog) {
+                    // 清理旧的3D展示台
+                    this.cleanupShowcase();
+                    existingDialog.remove();
+                }
+
+                // 从URL中提取歌单ID
+                const playlistId = this.extractYouTubePlaylistId(playlistUrl);
+
+                // 显示加载状态
+                this.showStatusMessage('正在获取歌单详情...');
+
+                try {
+                    // 优先使用存储的歌单数据，如果没有则通过API获取
+                    let playlistDetails = null;
+                    let playlistTitle = '歌单';
+
+                    if (playlistData) {
+                        playlistTitle = playlistData.title || '歌单';
+                        playlistDetails = { snippet: playlistData };
+                    } else {
+                        playlistDetails = await this.getPlaylistDetails(playlistId);
+                        playlistTitle = playlistDetails?.snippet?.title || '歌单';
+                    }
+
+                    // 获取歌单音乐列表
+                    const playlistItems = await this.getPlaylistItems(playlistId);
+                    const isYouTubeMusic = playlistTitle.includes('@');
+                    const isYouTube = playlistTitle.includes('#');
+
+                    // 确定平台和链接
+                    let platformName, platformIcon, finalUrl;
+                    if (isYouTubeMusic) {
+                        platformName = 'YouTube Music';
+                        platformIcon = 'https://music.youtube.com/img/favicon_144.png';
+                        finalUrl = `https://music.youtube.com/playlist?list=${playlistId}`;
+                    } else if (isYouTube) {
+                        platformName = 'YouTube';
+                        platformIcon = 'https://www.youtube.com/s/desktop/814d40a6/img/favicon_144x144.png';
+                        finalUrl = `https://www.youtube.com/playlist?list=${playlistId}`;
+                    } else {
+                        // 默认使用YouTube Music
+                        platformName = 'YouTube Music';
+                        platformIcon = 'https://music.youtube.com/img/favicon_144.png';
+                        finalUrl = `https://music.youtube.com/playlist?list=${playlistId}`;
+                    }
+
+                    // 创建对话框HTML
+                    let dialogContent = `
+                        <div class="dialog-header">
+                            <h3>${playlistTitle}</h3>
+                            <button class="close-btn" onclick="this.closest('#links-dialog').remove(); window.screensaver.cleanupShowcase();">×</button>
+                        </div>
+                        <div class="dialog-body">
+                            <!-- 3D展示台容器 -->
+                            <div id="iframe-showcase-container" style="width: 100%; height: 200px; margin-bottom: 20px; border-radius: 10px; overflow: hidden;"></div>
+
+                            <!-- 平台链接 -->
+                            <ul class="links-list">
+                                <li>
+                                    <a href="${finalUrl}" target="_blank" class="icon-link youtube-music-link"
+                                       onclick="event.preventDefault(); window.screensaver.handleLinkClick('${finalUrl}', '${platformName}', {albumPath: '${albumPath}', albumTitle: '${playlistTitle}'})">
+                                        <div class="youtube-music-icon">
+                                            <img src="${platformIcon}" alt="${platformName}" class="youtube-icon">
+                                        </div>
+                                        <span>${platformName}</span>
+                                    </a>
+                                </li>
+                            </ul>
+
+                            <!-- 歌单音乐列表 -->
+                            <div class="playlist-tracks">
+                                <h4>歌单内容 (${playlistItems.length} 首)</h4>
+                                <div class="tracks-list">
+                    `;
+
+                    // 添加音乐列表
+                    playlistItems.forEach((item, index) => {
+                        const title = item.snippet?.title || '未知标题';
+                        const channelTitle = item.snippet?.videoOwnerChannelTitle || item.snippet?.channelTitle || '未知艺术家';
+                        const thumbnail = item.snippet?.thumbnails?.default?.url || '';
+                        const videoId = item.snippet?.resourceId?.videoId || '';
+                        const videoUrl = isYouTubeMusic ?
+                            `https://music.youtube.com/watch?v=${videoId}&list=${playlistId}` :
+                            `https://www.youtube.com/watch?v=${videoId}&list=${playlistId}`;
+
+                        dialogContent += `
+                            <div class="track-item">
+                                <div class="track-thumbnail">
+                                    <img src="${thumbnail}" alt="${title}" onerror="this.style.display='none'">
+                                </div>
+                                <div class="track-info">
+                                    <div class="track-title">${title}</div>
+                                    <div class="track-artist">${channelTitle}</div>
+                                </div>
+                                <div class="track-actions">
+                                    <a href="${videoUrl}" target="_blank" class="track-link"
+                                       onclick="event.preventDefault(); window.screensaver.handleLinkClick('${videoUrl}', '${platformName}', {albumPath: '${albumPath}', albumTitle: '${title}'})">播放</a>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    dialogContent += `
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    // 创建对话框元素
+                    const dialog = document.createElement('div');
+                    dialog.id = 'links-dialog';
+                    dialog.className = 'links-dialog';
+                    dialog.innerHTML = dialogContent;
+
+                    // 添加样式（复用现有的链接对话框样式）
+                    const style = document.createElement('style');
+                    style.textContent = this.getYouTubeDialogStyles();
+                    dialog.appendChild(style);
+
+                    // 添加到页面
+                    document.body.appendChild(dialog);
+
+                    // 在容器中创建canvas并初始化3D展示台
+                    this.setupYouTubeShowcase(albumPath, playlistTitle);
+
+                    // 显示状态消息
+                    this.showStatusMessage('歌单详情已加载');
+
+                } catch (error) {
+                    console.error('获取YouTube歌单详情失败:', error);
+                    this.showStatusMessage('获取歌单详情失败');
+
+                    // 显示简化版对话框
+                    this.showSimpleYouTubeDialog(playlistUrl, albumPath, '歌单');
+                }
+            }
+
+            // 获取歌单详情
+            async getPlaylistDetails(playlistId) {
+                if (!this.youtubeApiKey || this.youtubeApiKey === 'YOUR_YOUTUBE_API_KEY_HERE') {
+                    return null;
+                }
+
+                const apiUrl = `https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=${playlistId}&key=${this.youtubeApiKey}`;
+
+                try {
+                    const response = await fetch(apiUrl);
+                    if (!response.ok) return null;
+
+                    const data = await response.json();
+                    return data.items && data.items.length > 0 ? data.items[0] : null;
+                } catch (error) {
+                    console.warn(`获取歌单 ${playlistId} 详情失败:`, error);
+                    return null;
+                }
+            }
+
+            // 获取歌单中的音乐项目
+            async getPlaylistItems(playlistId, maxResults = 20) {
+                if (!this.youtubeApiKey || this.youtubeApiKey === 'YOUR_YOUTUBE_API_KEY_HERE') {
+                    return [];
+                }
+
+                const apiUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${playlistId}&maxResults=${maxResults}&key=${this.youtubeApiKey}`;
+
+                try {
+                    const response = await fetch(apiUrl);
+                    if (!response.ok) return [];
+
+                    const data = await response.json();
+                    return data.items || [];
+                } catch (error) {
+                    console.warn(`获取歌单 ${playlistId} 项目失败:`, error);
+                    return [];
+                }
+            }
+
+            // 显示简化版YouTube对话框（当API调用失败时使用）
+            showSimpleYouTubeDialog(playlistUrl, albumPath, playlistTitle) {
+                const playlistId = this.extractYouTubePlaylistId(playlistUrl);
+                const isYouTubeMusic = playlistTitle.includes('@');
+                const isYouTube = playlistTitle.includes('#');
+
+                let platformName, platformIcon, finalUrl;
+                if (isYouTubeMusic) {
+                    platformName = 'YouTube Music';
+                    platformIcon = 'https://music.youtube.com/img/favicon_144.png';
+                    finalUrl = `https://music.youtube.com/playlist?list=${playlistId}`;
+                } else if (isYouTube) {
+                    platformName = 'YouTube';
+                    platformIcon = 'https://www.youtube.com/s/desktop/814d40a6/img/favicon_144x144.png';
+                    finalUrl = `https://www.youtube.com/playlist?list=${playlistId}`;
+                } else {
+                    platformName = 'YouTube Music';
+                    platformIcon = 'https://music.youtube.com/img/favicon_144.png';
+                    finalUrl = `https://music.youtube.com/playlist?list=${playlistId}`;
+                }
+
+                const dialogContent = `
+                    <div class="dialog-header">
+                        <h3>${playlistTitle}</h3>
+                        <button class="close-btn" onclick="this.closest('#links-dialog').remove(); window.screensaver.cleanupShowcase();">×</button>
+                    </div>
+                    <div class="dialog-body">
+                        <div id="iframe-showcase-container" style="width: 100%; height: 200px; margin-bottom: 20px; border-radius: 10px; overflow: hidden;"></div>
+                        <ul class="links-list">
+                            <li>
+                                <a href="${finalUrl}" target="_blank" class="icon-link youtube-music-link"
+                                   onclick="event.preventDefault(); window.screensaver.handleLinkClick('${finalUrl}', '${platformName}', {albumPath: '${albumPath}', albumTitle: '${playlistTitle}'})">
+                                    <div class="youtube-music-icon">
+                                        <img src="${platformIcon}" alt="${platformName}" class="youtube-icon">
+                                    </div>
+                                    <span>${platformName}</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                `;
+
+                const dialog = document.createElement('div');
+                dialog.id = 'links-dialog';
+                dialog.className = 'links-dialog';
+                dialog.innerHTML = dialogContent;
+
+                // 添加样式
+                const style = document.createElement('style');
+                style.textContent = this.getYouTubeDialogStyles();
+                dialog.appendChild(style);
+
+                document.body.appendChild(dialog);
+
+                // 在容器中创建canvas并初始化3D展示台
+                this.setupYouTubeShowcase(albumPath, playlistTitle);
+            }
+
+            // 设置YouTube对话框的3D展示台（真正复用MusicBrainz展示台）
+            setupYouTubeShowcase(albumPath, playlistTitle) {
+                const container = document.getElementById('iframe-showcase-container');
+                if (!container) {
+                    console.warn('找不到3D展示台容器');
+                    return;
+                }
+
+                // 创建canvas元素，使用MusicBrainz展示台期望的ID
+                const canvas = document.createElement('canvas');
+                canvas.id = 'album-showcase-canvas'; // 使用MusicBrainz展示台期望的ID
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                canvas.style.borderRadius = '10px';
+                container.appendChild(canvas);
+
+                // 备份原始的showcaseCanvas引用
+                const originalShowcaseCanvas = this.showcaseCanvas;
+
+                // 更新showcaseCanvas引用
+                this.showcaseCanvas = canvas;
+
+                // 调用现有的展示台初始化方法
+                this.initializeShowcase(albumPath);
+
+                // 存储清理函数
+                container._cleanup = () => {
+                    // 恢复原始showcaseCanvas引用
+                    this.showcaseCanvas = originalShowcaseCanvas;
+                    // 调用现有的清理方法
+                    this.cleanupShowcase();
+                };
+            }
+
+            // 获取YouTube对话框样式
+            getYouTubeDialogStyles() {
+                return `
+                    .links-dialog {
+                        position: fixed;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        background-color: rgba(20, 20, 20, 0.8);
+                        backdrop-filter: blur(20px);
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+                        border-radius: 15px;
+                        padding: 20px;
+                        z-index: 9999;
+                        color: white;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                        min-width: 400px;
+                        max-width: 90vw;
+                        max-height: 80vh;
+                        overflow-y: auto;
+                        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+                        animation: slideIn 0.3s ease;
+                        scrollbar-width: thin;
+                        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+                    }
+
+                    /* 自定义滚动条样式 - Webkit浏览器 */
+                    .links-dialog::-webkit-scrollbar {
+                        width: 8px;
+                    }
+
+                    .links-dialog::-webkit-scrollbar-track {
+                        background: transparent;
+                        border-radius: 10px;
+                    }
+
+                    .links-dialog::-webkit-scrollbar-thumb {
+                        background: rgba(255, 255, 255, 0.2);
+                        border-radius: 10px;
+                        transition: background 0.3s ease;
+                    }
+
+                    .links-dialog::-webkit-scrollbar-thumb:hover {
+                        background: rgba(255, 255, 255, 0.3);
+                    }
+
+                    .tracks-list::-webkit-scrollbar {
+                        width: 6px;
+                    }
+
+                    .tracks-list::-webkit-scrollbar-track {
+                        background: transparent;
+                        border-radius: 10px;
+                    }
+
+                    .tracks-list::-webkit-scrollbar-thumb {
+                        background: rgba(255, 255, 255, 0.15);
+                        border-radius: 10px;
+                        transition: background 0.3s ease;
+                    }
+
+                    .tracks-list::-webkit-scrollbar-thumb:hover {
+                        background: rgba(255, 255, 255, 0.25);
+                    }
+
+                    @keyframes slideIn {
+                        from {
+                            opacity: 0;
+                            transform: translate(-50%, -60%);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translate(-50%, -50%);
+                        }
+                    }
+
+                    .dialog-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 15px;
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                        padding-bottom: 10px;
+                    }
+
+                    .dialog-header h3 {
+                        margin: 0;
+                        font-size: 18px;
+                        font-weight: 600;
+                        max-width: 300px;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    .close-btn {
+                        background: none;
+                        border: none;
+                        color: rgba(255, 255, 255, 0.7);
+                        font-size: 24px;
+                        cursor: pointer;
+                        padding: 0;
+                        width: 30px;
+                        height: 30px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border-radius: 50%;
+                        transition: all 0.2s ease;
+                    }
+
+                    .close-btn:hover {
+                        background-color: rgba(255, 255, 255, 0.1);
+                        color: white;
+                    }
+
+                    .links-list {
+                        list-style: none;
+                        padding: 0;
+                        margin: 0 0 20px 0;
+                    }
+
+                    .links-list li {
+                        margin-bottom: 10px;
+                    }
+
+                    .icon-link {
+                        display: flex;
+                        align-items: center;
+                        padding: 12px 15px;
+                        background-color: rgba(255, 255, 255, 0.05);
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+                        border-radius: 10px;
+                        text-decoration: none;
+                        color: white;
+                        transition: all 0.3s ease;
+                        font-size: 14px;
+                        font-weight: 500;
+                    }
+
+                    .icon-link:hover {
+                        background-color: rgba(255, 255, 255, 0.1);
+                        border-color: rgba(255, 255, 255, 0.2);
+                        transform: translateY(-2px);
+                        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+                    }
+
+                    .youtube-music-icon {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 40px;
+                        height: 40px;
+                        margin-right: 12px;
+                    }
+
+                    .youtube-icon {
+                        width: 32px;
+                        height: 32px;
+                        object-fit: contain;
+                        filter: brightness(0.9);
+                        transition: all 0.3s ease;
+                    }
+
+                    .playlist-tracks {
+                        margin-top: 20px;
+                    }
+
+                    .playlist-tracks h4 {
+                        margin: 0 0 15px 0;
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: rgba(255, 255, 255, 0.9);
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                        padding-bottom: 8px;
+                    }
+
+                    .tracks-list {
+                        max-height: 300px;
+                        overflow-y: auto;
+                    }
+
+                    .track-item {
+                        display: flex;
+                        align-items: center;
+                        padding: 8px 0;
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                    }
+
+                    .track-item:last-child {
+                        border-bottom: none;
+                    }
+
+                    .track-thumbnail {
+                        width: 40px;
+                        height: 40px;
+                        margin-right: 12px;
+                        border-radius: 4px;
+                        overflow: hidden;
+                        background-color: rgba(255, 255, 255, 0.1);
+                        flex-shrink: 0;
+                    }
+
+                    .track-thumbnail img {
+                        width: 100%;
+                        height: 100%;
+                        object-fit: cover;
+                    }
+
+                    .track-info {
+                        flex: 1;
+                        min-width: 0;
+                    }
+
+                    .track-title {
+                        font-size: 14px;
+                        font-weight: 500;
+                        color: white;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        margin-bottom: 2px;
+                    }
+
+                    .track-artist {
+                        font-size: 12px;
+                        color: rgba(255, 255, 255, 0.7);
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    .track-actions {
+                        margin-left: 12px;
+                        flex-shrink: 0;
+                    }
+
+                    .track-link {
+                        color: #ff6b6b;
+                        text-decoration: none;
+                        font-size: 12px;
+                        font-weight: 500;
+                        padding: 4px 8px;
+                        border: 1px solid #ff6b6b;
+                        border-radius: 4px;
+                        transition: all 0.2s ease;
+                    }
+
+                    .track-link:hover {
+                        background-color: #ff6b6b;
+                        color: white;
+                    }
+                `;
+            }
+
+            // 从YouTube歌单URL中提取歌单ID
+            extractYouTubePlaylistId(url) {
+                // 例如：https://music.youtube.com/playlist?list=PLrAl6rYgs4IvGFBDEaVGFXt6k2GiOFWjS
+                const match = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
                 return match ? match[1] : null;
             }
             
@@ -5938,7 +6884,8 @@
                         desktopMode: this.desktopMode || false,
                         iframeModeEnabled: this.iframeModeEnabled || false,
                         iframeMusicBrainzModeEnabled: this.iframeMusicBrainzModeEnabled || false,
-                        iframeListenBrainzModeEnabled: this.iframeListenBrainzModeEnabled || false
+                        iframeListenBrainzModeEnabled: this.iframeListenBrainzModeEnabled || false,
+                        youtubeFilterEnabled: this.youtubeFilterEnabled || false // 默认false
                     };
                     
                     localStorage.setItem('mac_screensaver_settings', JSON.stringify(settings));
@@ -5969,6 +6916,7 @@
                         if (settings.iframeModeEnabled !== undefined) this.iframeModeEnabled = settings.iframeModeEnabled;
                         if (settings.iframeMusicBrainzModeEnabled !== undefined) this.iframeMusicBrainzModeEnabled = settings.iframeMusicBrainzModeEnabled;
                         if (settings.iframeListenBrainzModeEnabled !== undefined) this.iframeListenBrainzModeEnabled = settings.iframeListenBrainzModeEnabled;
+                        if (settings.youtubeFilterEnabled !== undefined) this.youtubeFilterEnabled = settings.youtubeFilterEnabled;
                         
                         if (settings.animationWeights) {
                             // 合并权重设置，确保所有键都存在
@@ -6157,7 +7105,24 @@
                         this.showStatusMessage('已禁用ListenBrainz iframe模式');
                     }
                 });
-                
+
+                // YouTube设置
+                const youtubeFilterToggle = document.getElementById('youtube-filter-toggle');
+                youtubeFilterToggle.checked = this.youtubeFilterEnabled || false; // 默认不启用
+
+                youtubeFilterToggle.addEventListener('change', () => {
+                    this.youtubeFilterEnabled = youtubeFilterToggle.checked;
+                    // 实时保存设置
+                    this.saveSettings();
+
+                    // 显示状态消息
+                    if (this.youtubeFilterEnabled) {
+                        this.showStatusMessage('已启用YouTube播放列表过滤');
+                    } else {
+                        this.showStatusMessage('已禁用YouTube播放列表过滤，无符号播放列表将视为YouTube播放列表');
+                    }
+                });
+
                 // 添加重置按钮到设置面板
                 this.addResetButton();
             }
@@ -7011,6 +7976,7 @@
                 const musicServices = [
                     'spotify.com',
                     'music.youtube.com',
+                    'youtube.com', // 添加普通YouTube支持
                     'music.apple.com',
                     'itunes.apple.com',
                     'deezer.com',
@@ -7055,7 +8021,50 @@
                     
                     // YouTube Music链接转换
                     if (url.includes('music.youtube.com')) {
-                        console.log('检测到YouTube Music链接，暂时返回原URL');
+
+
+                        // console.log('检测到YouTube Music链接');
+
+                        // // 提取播放列表ID
+                        // const playlistMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+                        // if (playlistMatch) {
+                        //     const playlistId = playlistMatch[1];
+                        //     const embedUrl = `https://www.youtube.com/embed/videoseries?list=${playlistId}&autoplay=1`;
+                        //     console.log('YouTube Music播放列表转换为embed:', embedUrl);
+                        //     return embedUrl;
+                        // }
+
+                        // console.log('YouTube Music链接暂时返回原URL');
+                        // return url;
+
+
+                        console.log('检测到YouTube Music链接，直接返回原URL');
+                        return url; // YouTube Music直接返回原URL，不转换
+                    }
+
+                    // YouTube链接转换
+                    if (url.includes('youtube.com')) {
+                        console.log('检测到YouTube链接');
+
+                        // // 提取播放列表ID
+                        // const playlistMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+                        // if (playlistMatch) {
+                        //     const playlistId = playlistMatch[1];
+                        //     const embedUrl = `https://www.youtube.com/embed/videoseries?list=${playlistId}&autoplay=1`;
+                        //     console.log('YouTube播放列表转换为embed:', embedUrl);
+                        //     return embedUrl;
+                        // }
+
+                        // // 提取视频ID
+                        // const videoMatch = url.match(/[?&]v=([a-zA-Z0-9_-]+)/);
+                        // if (videoMatch) {
+                        //     const videoId = videoMatch[1];
+                        //     const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+                        //     console.log('YouTube视频转换为embed:', embedUrl);
+                        //     return embedUrl;
+                        // }
+
+                        console.log('YouTube链接暂时返回原URL');
                         return url;
                     }
                     

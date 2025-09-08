@@ -2,6 +2,9 @@
 
 > inspired by Apple’s macOS  inbuilt iTunes Screensaver
 
+
+ [中文版：](./ReadmeZh.md)
+
 # MusicBrainz Collection Cover Art
 
 ### 1. [Single Collection](https://album-artwork.vercel.app/?id=8ac56a60-c667-4603-817e-793f0d2600b8)
@@ -17,6 +20,19 @@ https://album-artwork.vercel.app/?id=8ac56a60-c667-4603-817e-793f0d2600b8&id=8bd
 https://musicbrainz.org/collection/8ac56a60-c667-4603-817e-793f0d2600b8
 https://musicbrainz.org/collection/8bd472fd-b961-4c59-95f1-26521b072a63
 
+
+# Youtube / Youtube Music Open Playlist
+
+## example
+https://album-artwork.vercel.app/?YT=@nara.asmr.&YT=@asmrcham&YT=@CoromoSaraASMR
+
+## Name fillter:
+if name contain "@", it's youtube music
+if name contain "#", it's youtube
+if name not contain any , it's vill be default to show as youtube
+
+## settings
+hide the list that not contain @ or #
 
 # Local Cover Art
 
@@ -44,6 +60,7 @@ MIT
 
 https://codepen.io/K-T/pen/qoVmJQ
 three.js
+
 
 
 
