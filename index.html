@@ -2970,13 +2970,6 @@
                 try {
                     console.log('开始清理展示台资源');
 
-                    // 清理YouTube对话框的3D展示台
-                    const youtubeContainer = document.getElementById('iframe-showcase-container');
-                    if (youtubeContainer && youtubeContainer._cleanup) {
-                        youtubeContainer._cleanup();
-                        youtubeContainer._cleanup = null;
-                    }
-
                     // 停止动画循环
                     this.stopShowcaseAnimation();
                     
@@ -5042,13 +5035,8 @@
 
             // 显示YouTube歌单对话框
             async showYouTubePlaylistDialog(playlistUrl, albumPath, playlistData = null) {
-                // 移除可能已存在的对话框
-                const existingDialog = document.getElementById('links-dialog');
-                if (existingDialog) {
-                    // 清理旧的3D展示台
-                    this.cleanupShowcase();
-                    existingDialog.remove();
-                }
+                // 关闭可能已存在的对话框（包括遮罩）
+                this.closeYouTubeDialog();
 
                 // 从URL中提取歌单ID
                 const playlistId = this.extractYouTubePlaylistId(playlistUrl);
@@ -5095,7 +5083,7 @@
                     let dialogContent = `
                         <div class="dialog-header">
                             <h3>${playlistTitle}</h3>
-                            <button class="close-btn" onclick="this.closest('#links-dialog').remove(); window.screensaver.cleanupShowcase();">×</button>
+                            <button class="close-btn" onclick="window.screensaver.closeYouTubeDialog();">×</button>
                         </div>
                         <div class="dialog-body">
                             <!-- 3D展示台容器 -->
@@ -5162,13 +5150,35 @@
                     // 添加样式（复用现有的链接对话框样式）
                     const style = document.createElement('style');
                     style.textContent = this.getYouTubeDialogStyles();
-                    dialog.appendChild(style);
+
+                    // 创建背景遮罩
+                    const backdrop = document.createElement('div');
+                    backdrop.className = 'dialog-backdrop';
+                    backdrop.style.cssText = `
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background-color: rgba(0, 0, 0, 0.7);
+                        backdrop-filter: blur(3px);
+                        -webkit-backdrop-filter: blur(3px);
+                        z-index: 9998;
+                        animation: fadeIn 0.3s ease;
+                    `;
 
                     // 添加到页面
+                    document.body.appendChild(style);
+                    document.body.appendChild(backdrop);
                     document.body.appendChild(dialog);
 
                     // 在容器中创建canvas并初始化3D展示台
                     this.setupYouTubeShowcase(albumPath, playlistTitle);
+
+                    // 添加遮罩点击事件（点击遮罩关闭对话框）
+                    backdrop.addEventListener('click', () => {
+                        this.closeYouTubeDialog();
+                    });
 
                     // 显示状态消息
                     this.showStatusMessage('歌单详情已加载');
@@ -5257,6 +5267,8 @@
 
             // 显示简化版YouTube对话框（当API调用失败时使用）
             showSimpleYouTubeDialog(playlistUrl, albumPath, playlistTitle) {
+                // 关闭可能已存在的对话框（包括遮罩）
+                this.closeYouTubeDialog();
                 const playlistId = this.extractYouTubePlaylistId(playlistUrl);
                 const isYouTubeMusic = playlistTitle.includes('@');
                 const isYouTube = playlistTitle.includes('#');
@@ -5279,7 +5291,7 @@
                 const dialogContent = `
                     <div class="dialog-header">
                         <h3>${playlistTitle}</h3>
-                        <button class="close-btn" onclick="this.closest('#links-dialog').remove(); window.screensaver.cleanupShowcase();">×</button>
+                        <button class="close-btn" onclick="window.screensaver.closeYouTubeDialog();">×</button>
                     </div>
                     <div class="dialog-body">
                         <div id="iframe-showcase-container" style="width: 100%; height: 200px; margin-bottom: 20px; border-radius: 10px; overflow: hidden;"></div>
@@ -5305,12 +5317,34 @@
                 // 添加样式
                 const style = document.createElement('style');
                 style.textContent = this.getYouTubeDialogStyles();
-                dialog.appendChild(style);
 
+                // 创建背景遮罩
+                const backdrop = document.createElement('div');
+                backdrop.className = 'dialog-backdrop';
+                backdrop.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background-color: rgba(0, 0, 0, 0.7);
+                    backdrop-filter: blur(3px);
+                    -webkit-backdrop-filter: blur(3px);
+                    z-index: 9998;
+                    animation: fadeIn 0.3s ease;
+                `;
+
+                document.body.appendChild(style);
+                document.body.appendChild(backdrop);
                 document.body.appendChild(dialog);
 
                 // 在容器中创建canvas并初始化3D展示台
                 this.setupYouTubeShowcase(albumPath, playlistTitle);
+
+                // 添加遮罩点击事件（点击遮罩关闭对话框）
+                backdrop.addEventListener('click', () => {
+                    this.closeYouTubeDialog();
+                });
             }
 
             // 设置YouTube对话框的3D展示台（真正复用MusicBrainz展示台）
@@ -5340,11 +5374,56 @@
 
                 // 存储清理函数
                 container._cleanup = () => {
+                    console.log('清理YouTube 3D展示台内部资源');
                     // 恢复原始showcaseCanvas引用
                     this.showcaseCanvas = originalShowcaseCanvas;
-                    // 调用现有的清理方法
-                    this.cleanupShowcase();
+                    // 不调用通用的cleanupShowcase，避免无限循环
+                    console.log('YouTube 3D展示台内部资源清理完成');
                 };
+            }
+
+            // 关闭YouTube对话框
+            closeYouTubeDialog() {
+                // 检查是否有对话框存在
+                const dialog = document.getElementById('links-dialog');
+                const backdrop = document.querySelector('.dialog-backdrop');
+
+                if (!dialog && !backdrop) {
+                    // 没有对话框存在，直接返回
+                    return;
+                }
+
+                // 只清理YouTube特定的3D展示台资源
+                this.cleanupYouTubeShowcase();
+
+                // 移除对话框和遮罩
+                if (dialog) {
+                    dialog.remove();
+                    console.log('YouTube对话框已移除');
+                }
+                if (backdrop) {
+                    backdrop.remove();
+                    console.log('对话框遮罩已移除');
+                }
+
+                console.log('YouTube对话框关闭完成');
+            }
+
+            // 清理YouTube展示台资源
+            cleanupYouTubeShowcase() {
+                console.log('开始清理YouTube展示台资源');
+
+                // 清理YouTube对话框的3D展示台
+                const youtubeContainer = document.getElementById('iframe-showcase-container');
+                if (youtubeContainer && youtubeContainer._cleanup) {
+                    console.log('清理YouTube 3D展示台');
+                    youtubeContainer._cleanup();
+                    youtubeContainer._cleanup = null;
+                } else {
+                    console.log('没有找到YouTube 3D展示台需要清理');
+                }
+
+                console.log('YouTube展示台资源清理完成');
             }
 
             // 获取YouTube对话框样式
@@ -5599,6 +5678,11 @@
                     .track-link:hover {
                         background-color: #ff6b6b;
                         color: white;
+                    }
+
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to { opacity: 1; }
                     }
                 `;
             }
