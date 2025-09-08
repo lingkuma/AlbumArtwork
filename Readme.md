@@ -34,6 +34,13 @@ if name not contain any , it's vill be default to show as youtube
 ## settings
 hide the list that not contain @ or #
 
+# Spotify Support
+## example
+https://open.spotify.com/user/
+https://album-artwork.vercel.app/?SP=22kqa4f54gtlofehc4gi5a5ly
+
+
+
 # Local Cover Art
 
 ## Introduction

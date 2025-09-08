@@ -1361,15 +1361,15 @@
                     console.log(`从URL参数获取到 ${ids.length} 个收藏夹ID:`, ids);
                     return ids;
                 } else {
-                    // 检查是否有YouTube参数
-                    const ytIds = urlParams.getAll('YT');
+                    // 检查是否有YouTube参数（大小写不敏感）
+                    const ytIds = this.getUrlParamsCaseInsensitive(urlParams, 'YT');
                     if (ytIds.length > 0) {
                         console.log('检测到YouTube参数，不使用默认MusicBrainz ID');
                         return [];
                     }
 
-                    // 检查是否有Spotify参数
-                    const spIds = urlParams.getAll('SP');
+                    // 检查是否有Spotify参数（大小写不敏感）
+                    const spIds = this.getUrlParamsCaseInsensitive(urlParams, 'SP');
                     if (spIds.length > 0) {
                         console.log('检测到Spotify参数，不使用默认MusicBrainz ID');
                         return [];
@@ -1385,7 +1385,7 @@
             // 从URL参数中解析YouTube频道ID或用户名
             parseYouTubeChannelIdsFromUrl() {
                 const urlParams = new URLSearchParams(window.location.search);
-                const ytIds = urlParams.getAll('YT'); // 获取所有YT参数
+                const ytIds = this.getUrlParamsCaseInsensitive(urlParams, 'YT'); // 大小写不敏感获取YT参数
 
                 if (ytIds.length > 0) {
                     console.log(`从URL参数获取到 ${ytIds.length} 个YouTube频道标识:`, ytIds);
@@ -1400,7 +1400,7 @@
             // 从URL参数中解析Spotify用户ID
             parseSpotifyUserIdsFromUrl() {
                 const urlParams = new URLSearchParams(window.location.search);
-                const spIds = urlParams.getAll('SP'); // 获取所有SP参数
+                const spIds = this.getUrlParamsCaseInsensitive(urlParams, 'SP'); // 大小写不敏感获取SP参数
 
                 if (spIds.length > 0) {
                     console.log(`从URL参数获取到 ${spIds.length} 个Spotify用户标识:`, spIds);
@@ -1410,6 +1410,21 @@
                     console.log('没有找到Spotify用户参数');
                     return [];
                 }
+            }
+
+            // 大小写不敏感的URL参数获取方法
+            getUrlParamsCaseInsensitive(urlParams, paramName) {
+                const results = [];
+                const lowerParamName = paramName.toLowerCase();
+
+                // 遍历所有参数，进行大小写不敏感的匹配
+                for (const [key, value] of urlParams.entries()) {
+                    if (key.toLowerCase() === lowerParamName) {
+                        results.push(value);
+                    }
+                }
+
+                return results;
             }
 
             async init() {
