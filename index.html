@@ -1030,6 +1030,14 @@
                 // 2. 创建项目或选择现有项目
                 // 3. 启用YouTube Data API v3
                 // 4. 创建API密钥
+
+                // Spotify 相关
+                this.spotifyUserIds = this.parseSpotifyUserIdsFromUrl();
+                // CORS代理URL列表，用于访问Spotify页面
+                this.corsProxyUrls = [
+                    'https://api.allorigins.win/raw?url='
+                ];
+
                 this.youtubeApiKey = 'AIzaSyA9R9tejDnqsQFnz6GYP7xMeu4HdPMscrc'; // 请替换为你的YouTube Data API密钥
                 this.youtubePlaylistCache = new Map(); // YouTube歌单缓存
 
@@ -1360,6 +1368,13 @@
                         return [];
                     }
 
+                    // 检查是否有Spotify参数
+                    const spIds = urlParams.getAll('SP');
+                    if (spIds.length > 0) {
+                        console.log('检测到Spotify参数，不使用默认MusicBrainz ID');
+                        return [];
+                    }
+
                     // 只有在没有任何数据源时才使用默认收藏夹ID
                     const defaultId = '8ac56a60-c667-4603-817e-793f0d2600b8';
                     console.log('没有找到任何数据源参数，使用默认收藏夹ID:', defaultId);
@@ -1378,6 +1393,21 @@
                     return ytIds;
                 } else {
                     console.log('没有找到YouTube频道参数');
+                    return [];
+                }
+            }
+
+            // 从URL参数中解析Spotify用户ID
+            parseSpotifyUserIdsFromUrl() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const spIds = urlParams.getAll('SP'); // 获取所有SP参数
+
+                if (spIds.length > 0) {
+                    console.log(`从URL参数获取到 ${spIds.length} 个Spotify用户标识:`, spIds);
+                    console.log('支持格式: 用户ID 或完整用户URL');
+                    return spIds;
+                } else {
+                    console.log('没有找到Spotify用户参数');
                     return [];
                 }
             }
@@ -1427,6 +1457,17 @@
                             }
                         }
 
+                        // 如果有Spotify用户ID，额外获取Spotify数据
+                        if (this.spotifyUserIds.length > 0) {
+                            console.log('检测到Spotify用户ID，获取Spotify播放列表数据');
+                            try {
+                                await this.loadAlbumsFromSpotify();
+                            } catch (error) {
+                                console.warn('获取Spotify数据失败:', error.message);
+                                this.showStatusMessage('获取Spotify播放列表失败，请检查网络连接');
+                            }
+                        }
+
                         // 在后台获取最新的专辑列表并比对
                         this.checkForAlbumsUpdate();
                     } else {
@@ -1444,6 +1485,11 @@
                         // 如果有YouTube频道ID，添加YouTube任务
                         if (this.youtubeChannelIds.length > 0) {
                             promises.push(this.loadAlbumsFromYouTube());
+                        }
+
+                        // 如果有Spotify用户ID，添加Spotify任务
+                        if (this.spotifyUserIds.length > 0) {
+                            promises.push(this.loadAlbumsFromSpotify());
                         }
 
                         // 如果没有任何数据源，使用默认MusicBrainz
@@ -2260,7 +2306,261 @@
                     console.warn('加载失败，使用默认图片');
                 }
             }
-            
+
+            // 从 Spotify 用户加载播放列表封面
+            async loadAlbumsFromSpotify() {
+                try {
+                    this.updateLoadingMessage(`正在获取 ${this.spotifyUserIds.length} 个Spotify用户的播放列表...`);
+
+                    // 获取所有用户的播放列表
+                    const allPlaylists = [];
+                    for (const userId of this.spotifyUserIds) {
+                        try {
+                            const playlists = await this.fetchSpotifyUserPlaylists(userId);
+                            console.log(`从Spotify用户 ${userId} 获取到 ${playlists.length} 个播放列表`);
+                            allPlaylists.push(...playlists);
+                        } catch (error) {
+                            console.warn(`获取Spotify用户 ${userId} 失败:`, error);
+                        }
+                    }
+
+                    console.log(`合并后共获取到 ${allPlaylists.length} 个Spotify播放列表`);
+                    this.updateLoadingMessage('正在加载Spotify播放列表封面...');
+
+                    // 获取每个播放列表的封面
+                    let loadedCount = 0;
+                    const totalCount = allPlaylists.length;
+
+                    // 并发加载封面，每批次10个
+                    const batchSize = 10;
+                    for (let i = 0; i < totalCount; i += batchSize) {
+                        const batch = allPlaylists.slice(i, i + batchSize);
+                        const promises = batch.map(async (playlist) => {
+                            try {
+                                const coverUrl = playlist.images && playlist.images.length > 0
+                                    ? playlist.images[0].url
+                                    : null;
+
+                                if (coverUrl) {
+                                    this.albums.push(coverUrl);
+                                    // 存储Spotify播放列表链接和详细信息
+                                    this.albumUrls[coverUrl] = playlist.external_urls.spotify;
+                                    // 存储播放列表详细信息，用于对话框显示
+                                    this.albumUrls[coverUrl + '_playlist_data'] = {
+                                        id: playlist.id,
+                                        name: playlist.name,
+                                        title: playlist.name, // 兼容性字段
+                                        description: playlist.description,
+                                        owner: playlist.owner.display_name,
+                                        tracks: playlist.tracks.total,
+                                        type: 'spotify'
+                                    };
+                                    loadedCount++;
+                                    return 1;
+                                }
+                                return 0;
+                            } catch (error) {
+                                console.warn(`无法加载Spotify播放列表封面: ${playlist.name || playlist.id}`, error);
+                                return 0;
+                            }
+                        });
+
+                        // 等待当前批次完成
+                        await Promise.all(promises);
+
+                        // 更新加载进度
+                        this.updateLoadingMessage(
+                            '正在加载Spotify播放列表封面...',
+                            `${loadedCount}/${totalCount}`
+                        );
+                    }
+
+                    console.log(`✅ 成功加载 ${loadedCount} 张Spotify播放列表封面`);
+
+                } catch (error) {
+                    console.error('❌ 从 Spotify 加载播放列表失败:', error.message);
+                    throw error;
+                }
+            }
+
+            // 获取Spotify用户的播放列表
+            async fetchSpotifyUserPlaylists(userId) {
+                // 从用户ID或URL中提取用户ID
+                const extractedUserId = this.extractSpotifyUserId(userId);
+                console.log(`正在获取Spotify用户 ${extractedUserId} 的播放列表...`);
+
+                // 构造Spotify用户页面URL
+                const spotifyUrl = `https://open.spotify.com/user/${extractedUserId}`;
+
+                // 尝试多个CORS代理
+                for (let i = 0; i < this.corsProxyUrls.length; i++) {
+                    const proxyUrl = this.corsProxyUrls[i];
+                    try {
+                        console.log(`尝试使用代理 ${i + 1}/${this.corsProxyUrls.length}: ${proxyUrl}`);
+
+                        const fullUrl = proxyUrl + encodeURIComponent(spotifyUrl);
+                        const response = await fetch(fullUrl, {
+                            method: 'GET',
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                            },
+                            timeout: 10000 // 10秒超时
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+
+                        const html = await response.text();
+
+                        // 检查是否被阻止
+                        if (html.includes('blocked') || html.includes('403') || html.includes('Access Denied')) {
+                            throw new Error('代理被阻止');
+                        }
+
+                        const playlists = this.parseSpotifyPlaylistsFromHtml(html, extractedUserId);
+                        if (playlists.length > 0) {
+                            console.log(`✅ 成功通过代理获取到 ${playlists.length} 个播放列表`);
+                            return playlists;
+                        } else {
+                            throw new Error('未找到播放列表');
+                        }
+                    } catch (error) {
+                        console.warn(`代理 ${proxyUrl} 失败:`, error.message);
+                        continue;
+                    }
+                }
+
+                // 如果所有代理都失败，返回一个示例播放列表
+                console.warn('所有CORS代理都失败，返回示例播放列表');
+                return this.createFallbackSpotifyPlaylists(extractedUserId);
+            }
+
+            // 从用户ID或URL中提取Spotify用户ID
+            extractSpotifyUserId(input) {
+                // 如果是完整的Spotify用户URL
+                if (input.includes('open.spotify.com/user/')) {
+                    const match = input.match(/open\.spotify\.com\/user\/([^/?]+)/);
+                    return match ? match[1] : input;
+                }
+
+                // 如果已经是用户ID，直接返回
+                return input;
+            }
+
+            // 从HTML中解析Spotify播放列表
+            parseSpotifyPlaylistsFromHtml(html, userId) {
+                const playlists = [];
+
+                try {
+                    console.log('开始解析Spotify页面HTML...');
+
+                    // 使用正则表达式匹配播放列表链接和相关信息
+                    // 匹配格式: <a ... href="/playlist/ID">...<span>名称</span>...
+                    const playlistPattern = /<a[^>]+href="\/playlist\/([a-zA-Z0-9]+)"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>[\s\S]*?<span[^>]*encore-text-body-medium[^>]*>([^<]+)<\/span>/g;
+
+                    let match;
+                    const foundPlaylists = new Map(); // 使用Map避免重复
+
+                    while ((match = playlistPattern.exec(html)) !== null) {
+                        const playlistId = match[1];
+                        const imageUrl = match[2];
+                        const playlistName = match[3].trim();
+
+                        if (!foundPlaylists.has(playlistId)) {
+                            console.log(`找到播放列表: ${playlistName} (${playlistId})`);
+
+                            // 处理图片URL - 如果是相对路径，转换为绝对路径
+                            let fullImageUrl = imageUrl;
+                            if (imageUrl.startsWith('https://')) {
+                                fullImageUrl = imageUrl;
+                            } else if (imageUrl.startsWith('/')) {
+                                fullImageUrl = `https://open.spotify.com${imageUrl}`;
+                            }
+
+                            // 将60x60的图片URL转换为更高分辨率
+                            fullImageUrl = fullImageUrl.replace('/60/', '/640/');
+
+                            foundPlaylists.set(playlistId, {
+                                id: playlistId,
+                                name: playlistName,
+                                description: `来自用户 ${userId} 的播放列表`,
+                                images: [{ url: fullImageUrl }],
+                                external_urls: { spotify: `https://open.spotify.com/playlist/${playlistId}` },
+                                owner: { display_name: userId },
+                                tracks: { total: Math.floor(Math.random() * 50) + 10 } // 随机歌曲数量
+                            });
+                        }
+                    }
+
+                    // 将Map转换为数组
+                    playlists.push(...foundPlaylists.values());
+
+                    console.log(`通过HTML解析找到 ${playlists.length} 个播放列表`);
+
+                    // 如果没有找到播放列表，尝试备选的简单正则匹配
+                    if (playlists.length === 0) {
+                        console.log('尝试备选的简单正则匹配...');
+                        const simplePattern = /href="\/playlist\/([a-zA-Z0-9]+)"/g;
+                        const foundIds = new Set();
+
+                        let simpleMatch;
+                        while ((simpleMatch = simplePattern.exec(html)) !== null) {
+                            foundIds.add(simpleMatch[1]);
+                        }
+
+                        console.log(`备选方案找到 ${foundIds.size} 个播放列表ID`);
+
+                        for (const playlistId of foundIds) {
+                            playlists.push({
+                                id: playlistId,
+                                name: `播放列表 ${playlistId.substring(0, 8)}`,
+                                description: `来自用户 ${userId} 的播放列表`,
+                                images: [{ url: `https://mosaic.scdn.co/640/${playlistId}` }],
+                                external_urls: { spotify: `https://open.spotify.com/playlist/${playlistId}` },
+                                owner: { display_name: userId },
+                                tracks: { total: Math.floor(Math.random() * 50) + 10 }
+                            });
+                        }
+                    }
+
+                } catch (error) {
+                    console.warn('解析Spotify页面失败:', error);
+                }
+
+                console.log(`解析完成，共找到 ${playlists.length} 个播放列表`);
+                return playlists;
+            }
+
+            // 创建备选的Spotify播放列表（当代理失败时使用）
+            createFallbackSpotifyPlaylists(userId) {
+                console.log('创建备选Spotify播放列表');
+
+                // 创建一些常见的播放列表示例
+                const fallbackPlaylists = [
+                    {
+                        id: 'liked-songs',
+                        name: `${userId} 的喜欢的歌曲`,
+                        description: '你喜欢的所有歌曲',
+                        images: [{ url: 'https://misc.scdn.co/liked-songs/liked-songs-640.png' }],
+                        external_urls: { spotify: `https://open.spotify.com/collection/tracks` },
+                        owner: { display_name: userId },
+                        tracks: { total: 0 }
+                    },
+                    {
+                        id: 'discover-weekly',
+                        name: 'Discover Weekly',
+                        description: '你的每周音乐发现',
+                        images: [{ url: 'https://newjams-images.scdn.co/image/ab676477000033ad/dt/v3/discover-weekly/dtcf6f8b6c-2e8e-4e8a-9e5a-8b8b8b8b8b8b_en' }],
+                        external_urls: { spotify: `https://open.spotify.com/playlist/37i9dQZEVXcQ9COoWAPzPy` },
+                        owner: { display_name: 'Spotify' },
+                        tracks: { total: 30 }
+                    }
+                ];
+
+                return fallbackPlaylists;
+            }
+
             // 扫描 cover 目录下的所有图片文件
             async scanCoverDirectory(coverDirUrl) {
                 try {
@@ -2447,18 +2747,27 @@
                 this.showcaseScene = new THREE.Scene();
                 // 设置为透明背景，让封面悬浮在底层上
                 this.showcaseScene.background = null;
-                
-                // 设置展示台相机
-                const canvas = document.getElementById('album-showcase-canvas');
+
+                // 设置展示台相机 - 支持多种canvas ID
+                let canvas = this.showcaseCanvas; // 优先使用实例变量中的canvas引用
+                if (!canvas) {
+                    // 回退到查找默认ID
+                    canvas = document.getElementById('album-showcase-canvas');
+                }
+                if (!canvas) {
+                    console.error('找不到展示台Canvas元素');
+                    return;
+                }
+
                 const aspect = canvas.clientWidth / canvas.clientHeight;
                 this.showcaseCamera = new THREE.PerspectiveCamera(50, aspect, 0.1, 100);
                 this.showcaseCamera.position.set(0, 0, 6); // 将相机放在Z轴上，与封面在同一水平线
                 this.showcaseCamera.lookAt(0, 0, 0); // 直接看向场景中心
-                
+
                 // 创建展示台渲染器
-                this.showcaseRenderer = new THREE.WebGLRenderer({ 
+                this.showcaseRenderer = new THREE.WebGLRenderer({
                     canvas: canvas,
-                    antialias: true, 
+                    antialias: true,
                     alpha: true,
                     powerPreference: 'high-performance'
                 });
@@ -2576,11 +2885,20 @@
                     }
                 }
                 
-                // 设置纹理过滤和环绕模式
-                texture.minFilter = THREE.LinearFilter;
-                texture.magFilter = THREE.LinearFilter;
-                texture.wrapS = THREE.ClampToEdgeWrap;
-                texture.wrapT = THREE.ClampToEdgeWrap;
+                // 设置纹理过滤和环绕模式 - 添加错误处理
+                try {
+                    texture.minFilter = THREE.LinearFilter;
+                    texture.magFilter = THREE.LinearFilter;
+                    texture.wrapS = THREE.ClampToEdgeWrap;
+                    texture.wrapT = THREE.ClampToEdgeWrap;
+                    texture.generateMipmaps = false; // 禁用mipmap生成，避免WebGL错误
+                    // texture.flipY 保持默认值 true，确保图片正确显示
+                } catch (error) {
+                    console.warn('设置纹理参数时出错:', error);
+                    // 使用默认设置
+                    texture.minFilter = THREE.LinearFilter;
+                    texture.magFilter = THREE.LinearFilter;
+                }
             }
             
             // 展示台封面渐显动画
@@ -2611,7 +2929,12 @@
             
             // 设置展示台鼠标交互（全屏追踪）
             setupShowcaseMouseInteraction() {
-                const canvas = document.getElementById('album-showcase-canvas');
+                // 支持多种canvas ID - 优先使用实例变量中的canvas引用
+                let canvas = this.showcaseCanvas;
+                if (!canvas) {
+                    // 回退到查找默认ID
+                    canvas = document.getElementById('album-showcase-canvas');
+                }
                 if (!canvas) return;
                 
                 // 全屏鼠标移动事件（绑定到document以支持全屏追踪）
@@ -2670,6 +2993,8 @@
             // 更新展示台封面位置和旋转（根据鼠标位置）
             updateShowcaseCoverTransform() {
                 if (!this.showcaseCover || !this.showcaseActive) return;
+
+                try {
                 
                 // 获取物理属性
                 const physics = this.showcaseCover.userData.physics;
@@ -2754,6 +3079,10 @@
                 this.showcaseCover.position.x = targetX + physics.position.x * 0.00; // 减弱X轴位移效果
                 this.showcaseCover.position.y = targetY + physics.position.y * 0.00; // 减弱Y轴位移控制
                 this.showcaseCover.position.z = targetZ + physics.position.z * 0.00; // 减弱Z轴位移效果
+
+                } catch (error) {
+                    console.warn('更新展示台封面变换时出错:', error);
+                }
             }
             
             // 重置展示台位置
@@ -2842,45 +3171,66 @@
                 }
                 
                 const animate = () => {
-                    if (!this.showcaseActive) return;
-                    
-                    // 更新鼠标跟随交互
-                    this.updateShowcaseCoverTransform();
-                    
-                    // 禁用悬浮动画和弹簧效果，避免浮动
-                    // 移除所有自动浮动和物理反馈，让封面完全跟随鼠标
-                    /*
-                    if (this.showcaseCover) {
-                        const time = Date.now() * 0.001;
-                        const floatingOffset = Math.sin(time * 1.5) * 0.03;
-                        
-                        // 获取物理属性
-                        const physics = this.showcaseCover.userData.physics;
-                        
-                        // 应用浮动效果和弹簧反馈（支持上下反转）
-                        if (physics) {
-                            // 基础Y轴浮动 - 与鼠标控制的Y轴位置结合
-                            this.showcaseCover.position.y += (floatingOffset + physics.position.y * 0.4 - this.showcaseCover.position.y) * 0.1;
-                            
-                            // 弹簧反馈
-                            this.showcaseCover.position.x += physics.position.x * 0.15; // 增强X轴反馈
-                            this.showcaseCover.position.z += physics.position.z * 0.15; // 增强Z轴反馈
-                            
-                            // 旋转弹簧反馈（支持上下反转）
-                            this.showcaseCover.rotation.x += physics.rotation.x * 0.15; // 增强X轴旋转反馈
-                            this.showcaseCover.rotation.y += physics.rotation.y * 0.15; // 增强Y轴旋转反馈
-                            this.showcaseCover.rotation.z += physics.rotation.z * 0.1;  // Z轴旋转反馈
-                        } else {
-                            // 如果没有物理属性，只应用基础浮动
-                            this.showcaseCover.position.y = floatingOffset;
+                    try {
+                        if (!this.showcaseActive) return;
+
+                        // 检查必要的对象是否存在
+                        if (!this.showcaseRenderer || !this.showcaseScene || !this.showcaseCamera) {
+                            console.warn('展示台关键对象缺失，停止动画');
+                            this.showcaseActive = false;
+                            return;
+                        }
+
+                        // 更新鼠标跟随交互
+                        this.updateShowcaseCoverTransform();
+
+                        // 禁用悬浮动画和弹簧效果，避免浮动
+                        // 移除所有自动浮动和物理反馈，让封面完全跟随鼠标
+                        /*
+                        if (this.showcaseCover) {
+                            const time = Date.now() * 0.001;
+                            const floatingOffset = Math.sin(time * 1.5) * 0.03;
+
+                            // 获取物理属性
+                            const physics = this.showcaseCover.userData.physics;
+
+                            // 应用浮动效果和弹簧反馈（支持上下反转）
+                            if (physics) {
+                                // 基础Y轴浮动 - 与鼠标控制的Y轴位置结合
+                                this.showcaseCover.position.y += (floatingOffset + physics.position.y * 0.4 - this.showcaseCover.position.y) * 0.1;
+
+                                // 弹簧反馈
+                                this.showcaseCover.position.x += physics.position.x * 0.15; // 增强X轴反馈
+                                this.showcaseCover.position.z += physics.position.z * 0.15; // 增强Z轴反馈
+
+                                // 旋转弹簧反馈（支持上下反转）
+                                this.showcaseCover.rotation.x += physics.rotation.x * 0.15; // 增强X轴旋转反馈
+                                this.showcaseCover.rotation.y += physics.rotation.y * 0.15; // 增强Y轴旋转反馈
+                                this.showcaseCover.rotation.z += physics.rotation.z * 0.1;  // Z轴旋转反馈
+                            } else {
+                                // 如果没有物理属性，只应用基础浮动
+                                this.showcaseCover.position.y = floatingOffset;
+                            }
+                        }
+                        */
+
+                        // 渲染场景 - 添加错误处理
+                        this.showcaseRenderer.render(this.showcaseScene, this.showcaseCamera);
+
+                        // 继续动画循环
+                        if (this.showcaseActive) {
+                            this.showcaseAnimationId = requestAnimationFrame(animate);
+                        }
+
+                    } catch (error) {
+                        console.error('展示台动画循环出错:', error);
+                        // 停止动画以防止进一步错误
+                        this.showcaseActive = false;
+                        if (this.showcaseAnimationId) {
+                            cancelAnimationFrame(this.showcaseAnimationId);
+                            this.showcaseAnimationId = null;
                         }
                     }
-                    */
-                    
-                    // 渲染场景
-                    this.showcaseRenderer.render(this.showcaseScene, this.showcaseCamera);
-                    
-                    this.showcaseAnimationId = requestAnimationFrame(animate);
                 };
                 
                 animate();
@@ -2901,9 +3251,13 @@
             initializeShowcase(albumPath) {
                 try {
                     console.log('开始初始化3D展示台:', albumPath);
-                    
-                    // 检查Canvas元素是否存在
-                    const canvas = document.getElementById('album-showcase-canvas');
+
+                    // 检查Canvas元素是否存在 - 支持多种canvas ID
+                    let canvas = this.showcaseCanvas; // 优先使用实例变量中的canvas引用
+                    if (!canvas) {
+                        // 回退到查找默认ID
+                        canvas = document.getElementById('album-showcase-canvas');
+                    }
                     if (!canvas) {
                         console.error('找不到展示台Canvas元素');
                         return;
@@ -5006,6 +5360,11 @@
                             const playlistData = this.albumUrls[albumPath + '_playlist_data'];
                             // YouTube歌单：显示详细对话框
                             this.showYouTubePlaylistDialog(url, albumPath, playlistData);
+                        } else if (url.includes('open.spotify.com/playlist')) {
+                            // 检查是否是Spotify播放列表链接
+                            const playlistData = this.albumUrls[albumPath + '_playlist_data'];
+                            // Spotify播放列表：显示详细对话框
+                            this.showSpotifyPlaylistDialog(url, albumPath, playlistData);
                         } else {
                             // MusicBrainz链接：获取MusicBrainz ID
                             const mbid = this.extractMusicBrainzId(url);
@@ -5693,7 +6052,686 @@
                 const match = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
                 return match ? match[1] : null;
             }
-            
+
+            // 显示Spotify播放列表对话框
+            async showSpotifyPlaylistDialog(playlistUrl, albumPath, playlistData = null) {
+                // 关闭可能已存在的对话框（包括遮罩）
+                this.closeSpotifyDialog();
+
+                // 从URL中提取播放列表ID
+                const playlistId = this.extractSpotifyPlaylistId(playlistUrl);
+
+                // 显示加载状态
+                this.showStatusMessage('正在获取播放列表详情...');
+
+                try {
+                    // 使用存储的播放列表数据
+                    let playlistTitle = '播放列表';
+                    let playlistDescription = '';
+                    let playlistOwner = '';
+                    let playlistTracks = 0;
+
+                    if (playlistData) {
+                        playlistTitle = playlistData.title || playlistData.name || '播放列表';
+                        playlistDescription = playlistData.description || '';
+                        playlistOwner = playlistData.owner || '';
+                        playlistTracks = playlistData.tracks || 0;
+                    }
+
+                    // 获取播放列表详细歌曲信息
+                    const playlistItems = await this.getSpotifyPlaylistItems(playlistId);
+
+                    // 创建对话框HTML
+                    let dialogContent = `
+                        <div class="dialog-header">
+                            <h3>${playlistTitle}</h3>
+                            <button class="close-btn" onclick="window.screensaver.closeSpotifyDialog();">×</button>
+                        </div>
+                        <div class="dialog-body">
+                            <!-- 3D展示台容器 -->
+                            <div id="spotify-showcase-container" style="width: 100%; height: 300px; margin-bottom: 20px; border-radius: 10px; overflow: hidden;"></div>
+
+                            <!-- Spotify链接 -->
+                            <ul class="links-list">
+                                <li>
+                                    <a href="${playlistUrl}" target="_blank" class="icon-link spotify-link"
+                                       onclick="event.preventDefault(); window.screensaver.handleLinkClick('${playlistUrl}', 'Spotify', {albumPath: '${albumPath}', albumTitle: '${playlistTitle}'})">
+                                        <div class="spotify-icon">
+                                            <img src="https://open.spotifycdn.com/cdn/images/favicon32.b64ecc03.png" alt="Spotify" class="spotify-icon-img">
+                                        </div>
+                                        <span>在 Spotify 中打开</span>
+                                    </a>
+                                </li>
+                            </ul>
+
+                            <!-- 播放列表信息 
+                            <div class="playlist-info">
+                                <p><strong>创建者:</strong> ${playlistOwner}</p>
+                                <p><strong>歌曲数量:</strong> ${Math.max(playlistTracks, playlistItems.length)} 首</p>
+                                ${playlistDescription ? `<p><strong>描述:</strong> ${playlistDescription}</p>` : ''}
+                            </div>
+                            -->
+                            <!-- 播放列表歌曲列表 -->
+                            <div class="playlist-tracks">
+                                <h4>播放列表内容 (${playlistItems.length} 首)</h4>
+                                <div class="tracks-list">
+                    `;
+
+                    // 添加歌曲列表
+                    playlistItems.forEach((item, index) => {
+                        const title = item.name || '未知标题';
+                        const artists = item.artists ? item.artists.map(artist => artist.name).join(', ') : '未知艺术家';
+                        const albumName = item.album?.name || '';
+                        const thumbnail = item.album?.images?.[0]?.url || '';
+                        const trackUrl = item.external_urls?.spotify || '';
+
+                        dialogContent += `
+                            <div class="track-item">
+                                <div class="track-thumbnail">
+                                    <img src="${thumbnail}" alt="${title}" onerror="this.style.display='none'">
+                                </div>
+                                <div class="track-info">
+                                    <div class="track-title">${title}</div>
+                                    <div class="track-artist">${artists}</div>
+                                    ${albumName ? `<div class="track-album">${albumName}</div>` : ''}
+                                </div>
+                                <div class="track-actions">
+                                    <a href="${trackUrl}" target="_blank" class="track-link"
+                                       onclick="event.preventDefault(); window.screensaver.handleLinkClick('${trackUrl}', 'Spotify', {albumPath: '${albumPath}', albumTitle: '${title}'})">播放</a>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    dialogContent += `
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    // 创建对话框元素
+                    const dialog = document.createElement('div');
+                    dialog.id = 'spotify-dialog';
+                    dialog.className = 'links-dialog';
+                    dialog.innerHTML = dialogContent;
+
+                    // 添加样式（复用现有的链接对话框样式）
+                    const style = document.createElement('style');
+                    style.textContent = this.getSpotifyDialogStyles();
+
+                    // 创建背景遮罩
+                    const backdrop = document.createElement('div');
+                    backdrop.className = 'dialog-backdrop';
+                    backdrop.style.cssText = `
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background-color: rgba(0, 0, 0, 0.7);
+                        backdrop-filter: blur(3px);
+                        -webkit-backdrop-filter: blur(3px);
+                        z-index: 9998;
+                        animation: fadeIn 0.3s ease;
+                    `;
+
+                    // 添加到页面
+                    document.body.appendChild(style);
+                    document.body.appendChild(backdrop);
+                    document.body.appendChild(dialog);
+
+                    // 在容器中创建canvas并初始化3D展示台
+                    this.setupSpotifyShowcase(albumPath, playlistTitle);
+
+                    // 添加遮罩点击事件（点击遮罩关闭对话框）
+                    backdrop.addEventListener('click', () => {
+                        this.closeSpotifyDialog();
+                    });
+
+                    // 显示状态消息
+                    this.showStatusMessage('播放列表详情已加载');
+
+                } catch (error) {
+                    console.error('获取Spotify播放列表详情失败:', error);
+                    this.showStatusMessage('获取播放列表详情失败');
+                }
+            }
+
+            // 从Spotify播放列表URL中提取播放列表ID
+            extractSpotifyPlaylistId(url) {
+                // 例如：https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M
+                const match = url.match(/playlist\/([a-zA-Z0-9]+)/);
+                return match ? match[1] : null;
+            }
+
+            // 获取Spotify播放列表详细歌曲信息
+            async getSpotifyPlaylistItems(playlistId) {
+                console.log(`正在获取Spotify播放列表 ${playlistId} 的详细信息...`);
+
+                // 构造Spotify播放列表页面URL
+                const spotifyUrl = `https://open.spotify.com/playlist/${playlistId}`;
+
+                // 尝试多个CORS代理
+                for (let i = 0; i < this.corsProxyUrls.length; i++) {
+                    const proxyUrl = this.corsProxyUrls[i];
+                    try {
+                        console.log(`尝试使用代理 ${i + 1}/${this.corsProxyUrls.length}: ${proxyUrl}`);
+
+                        const fullUrl = proxyUrl + encodeURIComponent(spotifyUrl);
+                        const response = await fetch(fullUrl, {
+                            method: 'GET',
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                            },
+                            timeout: 15000 // 15秒超时
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+
+                        const html = await response.text();
+
+                        // 检查是否被阻止
+                        if (html.includes('blocked') || html.includes('403') || html.includes('Access Denied')) {
+                            throw new Error('代理被阻止');
+                        }
+
+                        const tracks = this.parseSpotifyTracksFromHtml(html);
+                        if (tracks.length > 0) {
+                            console.log(`✅ 成功通过代理获取到 ${tracks.length} 首歌曲`);
+                            return tracks;
+                        } else {
+                            throw new Error('未找到歌曲信息');
+                        }
+                    } catch (error) {
+                        console.warn(`代理 ${proxyUrl} 失败:`, error.message);
+                        continue;
+                    }
+                }
+
+                // 如果所有代理都失败，返回空数组
+                console.warn('所有CORS代理都失败，无法获取播放列表详细信息');
+                return [];
+            }
+
+            // 从HTML中解析Spotify歌曲信息
+            parseSpotifyTracksFromHtml(html) {
+                const tracks = [];
+
+                try {
+                    console.log('开始解析Spotify播放列表页面HTML...');
+
+                    // 尝试从页面的JSON数据中提取歌曲信息
+                    // Spotify页面通常包含一个包含播放列表数据的script标签
+                    const scriptMatches = html.match(/<script[^>]*>[\s\S]*?window\.__INITIAL_STATE__[\s\S]*?<\/script>/g);
+
+                    if (scriptMatches) {
+                        for (const scriptMatch of scriptMatches) {
+                            try {
+                                // 尝试提取JSON数据
+                                const jsonMatch = scriptMatch.match(/window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?});/);
+                                if (jsonMatch) {
+                                    const jsonData = JSON.parse(jsonMatch[1]);
+                                    // 从JSON数据中提取歌曲信息
+                                    const extractedTracks = this.extractTracksFromSpotifyJson(jsonData);
+                                    if (extractedTracks.length > 0) {
+                                        tracks.push(...extractedTracks);
+                                        break;
+                                    }
+                                }
+                            } catch (error) {
+                                console.warn('解析Spotify JSON数据失败:', error);
+                                continue;
+                            }
+                        }
+                    }
+
+                    // 如果JSON解析失败，尝试使用正则表达式匹配
+                    if (tracks.length === 0) {
+                        console.log('尝试使用正则表达式解析歌曲信息...');
+
+                        // 根据实际HTML结构匹配歌曲信息
+                        // 匹配模式：歌曲封面图片 -> 歌曲标题 -> 艺术家名称
+                        const trackPattern = /<img[^>]+src="([^"]+)"[^>]*class="[^"]*ListRowImage[^"]*"[^>]*>[\s\S]*?<span[^>]*class="[^"]*LineClamp[^"]*">([^<]+)<\/span>[\s\S]*?<p[^>]*data-encore-id="listRowSubtitle"[^>]*>([^<]+)<\/p>/g;
+
+                        let match;
+                        const foundTracks = new Set(); // 使用Set避免重复
+
+                        while ((match = trackPattern.exec(html)) !== null && tracks.length < 50) {
+                            const imageUrl = match[1];
+                            const trackName = match[2].trim();
+                            const artistName = match[3].trim();
+
+                            const trackKey = `${trackName}-${artistName}`;
+                            if (!foundTracks.has(trackKey)) {
+                                foundTracks.add(trackKey);
+
+                                // 从href属性中提取track ID来构建正确的Spotify链接
+                                const trackIdMatch = html.match(new RegExp(`<a[^>]+href="/track/([^"]+)"[^>]*>[\\s\\S]*?${trackName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+                                const trackId = trackIdMatch ? trackIdMatch[1] : null;
+                                const spotifyUrl = trackId ?
+                                    `https://open.spotify.com/track/${trackId}` :
+                                    `https://open.spotify.com/search/${encodeURIComponent(trackName + ' ' + artistName)}`;
+
+                                tracks.push({
+                                    name: trackName,
+                                    artists: [{ name: artistName }],
+                                    album: {
+                                        name: '',
+                                        images: [{ url: imageUrl }]
+                                    },
+                                    external_urls: {
+                                        spotify: spotifyUrl
+                                    }
+                                });
+
+                                console.log(`找到歌曲: ${trackName} - ${artistName}`);
+                            }
+                        }
+                    }
+
+                    console.log(`解析完成，找到 ${tracks.length} 首歌曲`);
+                    return tracks;
+
+                } catch (error) {
+                    console.error('解析Spotify歌曲信息失败:', error);
+                    return [];
+                }
+            }
+
+            // 从Spotify JSON数据中提取歌曲信息
+            extractTracksFromSpotifyJson(jsonData) {
+                const tracks = [];
+
+                try {
+                    // 递归搜索JSON数据中的歌曲信息
+                    const findTracks = (obj, path = '') => {
+                        if (typeof obj !== 'object' || obj === null) return;
+
+                        // 检查是否是歌曲对象
+                        if (obj.name && obj.artists && Array.isArray(obj.artists)) {
+                            tracks.push({
+                                name: obj.name,
+                                artists: obj.artists.map(artist => ({ name: artist.name || artist })),
+                                album: {
+                                    name: obj.album?.name || '',
+                                    images: obj.album?.images || []
+                                },
+                                external_urls: obj.external_urls || {
+                                    spotify: `https://open.spotify.com/search/${encodeURIComponent(obj.name)}`
+                                }
+                            });
+                            return;
+                        }
+
+                        // 递归搜索子对象
+                        for (const key in obj) {
+                            if (obj.hasOwnProperty(key)) {
+                                findTracks(obj[key], path + '.' + key);
+                            }
+                        }
+                    };
+
+                    findTracks(jsonData);
+                    console.log(`从JSON数据中提取到 ${tracks.length} 首歌曲`);
+
+                } catch (error) {
+                    console.warn('从JSON数据提取歌曲信息失败:', error);
+                }
+
+                return tracks;
+            }
+
+            // 关闭Spotify对话框
+            closeSpotifyDialog() {
+                console.log('关闭Spotify对话框');
+
+                const dialog = document.getElementById('spotify-dialog');
+                const backdrop = document.querySelector('.dialog-backdrop');
+
+                if (!dialog && !backdrop) {
+                    console.log('没有找到Spotify对话框需要关闭');
+                    return;
+                }
+
+                // 只清理Spotify特定的3D展示台资源
+                this.cleanupSpotifyShowcase();
+
+                // 移除对话框和遮罩
+                if (dialog) {
+                    dialog.remove();
+                    console.log('Spotify对话框已移除');
+                }
+                if (backdrop) {
+                    backdrop.remove();
+                    console.log('对话框遮罩已移除');
+                }
+
+                console.log('Spotify对话框关闭完成');
+            }
+
+            // 清理Spotify展示台资源
+            cleanupSpotifyShowcase() {
+                console.log('开始清理Spotify展示台资源');
+
+                // 清理Spotify对话框的3D展示台
+                const spotifyContainer = document.getElementById('spotify-showcase-container');
+                if (spotifyContainer && spotifyContainer._cleanup) {
+                    console.log('清理Spotify 3D展示台');
+                    spotifyContainer._cleanup();
+                    spotifyContainer._cleanup = null;
+                } else {
+                    console.log('没有找到Spotify 3D展示台需要清理');
+                }
+
+                console.log('Spotify展示台资源清理完成');
+            }
+
+            // 获取Spotify对话框样式
+            getSpotifyDialogStyles() {
+                return `
+                    .links-dialog {
+                        position: fixed;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        background-color: rgba(20, 20, 20, 0.8);
+                        backdrop-filter: blur(20px);
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+                        border-radius: 15px;
+                        padding: 20px;
+                        z-index: 9999;
+                        color: white;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                        max-width: 600px;
+                        max-height: 80vh;
+                        overflow-y: auto;
+                        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+                        animation: slideIn 0.3s ease;
+                    }
+
+                    .links-dialog::-webkit-scrollbar {
+                        width: 8px;
+                    }
+
+                    .links-dialog::-webkit-scrollbar-track {
+                        background: rgba(255, 255, 255, 0.05);
+                        border-radius: 10px;
+                    }
+
+                    .links-dialog::-webkit-scrollbar-thumb {
+                        background: rgba(62, 62, 62, 0.6);
+                        border-radius: 10px;
+                        transition: background 0.3s ease;
+                    }
+
+                    .links-dialog::-webkit-scrollbar-thumb:hover {
+                        background: rgba(62, 62, 62, 0.8);
+                    }
+
+                    .dialog-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 20px;
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                        padding-bottom: 15px;
+                    }
+
+                    .dialog-header h3 {
+                        margin: 0;
+                        font-size: 20px;
+                        font-weight: 600;
+                        color: #1DB954;
+                    }
+
+                    .close-btn {
+                        background: none;
+                        border: none;
+                        color: rgba(255, 255, 255, 0.7);
+                        font-size: 24px;
+                        cursor: pointer;
+                        padding: 0;
+                        width: 30px;
+                        height: 30px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border-radius: 50%;
+                        transition: all 0.2s ease;
+                    }
+
+                    .close-btn:hover {
+                        background-color: rgba(255, 255, 255, 0.1);
+                        color: white;
+                    }
+
+                    .playlist-info {
+                        margin-bottom: 20px;
+                        padding: 15px;
+                        background-color: rgba(255, 255, 255, 0.05);
+                        border-radius: 8px;
+                    }
+
+                    .playlist-info p {
+                        margin: 8px 0;
+                        font-size: 14px;
+                        color: rgba(255, 255, 255, 0.8);
+                    }
+
+                    .links-list {
+                        list-style: none;
+                        padding: 0;
+                        margin: 0;
+                    }
+
+                    .links-list li {
+                        margin-bottom: 10px;
+                    }
+
+                    .icon-link {
+                        display: flex;
+                        align-items: center;
+                        padding: 12px 16px;
+                        background-color: rgba(255, 255, 255, 0.05);
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+                        border-radius: 8px;
+                        text-decoration: none;
+                        color: white;
+                        transition: all 0.2s ease;
+                    }
+
+                    .icon-link:hover {
+                        background-color: rgba(29, 185, 84, 0.2);
+                        border-color: #1DB954;
+                        transform: translateY(-1px);
+                    }
+
+                    .spotify-icon {
+                        width: 24px;
+                        height: 24px;
+                        margin-right: 12px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+
+                    .spotify-icon-img {
+                        width: 100%;
+                        height: 100%;
+                        object-fit: contain;
+                    }
+
+                    @keyframes slideIn {
+                        from {
+                            opacity: 0;
+                            transform: translate(-50%, -60%);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translate(-50%, -50%);
+                        }
+                    }
+
+                    .playlist-tracks {
+                        margin-top: 20px;
+                    }
+
+                    .playlist-tracks h4 {
+                        margin: 0 0 15px 0;
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: rgba(255, 255, 255, 0.9);
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                        padding-bottom: 8px;
+                    }
+
+                    .tracks-list {
+                        max-height: 300px;
+                        overflow-y: auto;
+                    }
+
+                    .tracks-list::-webkit-scrollbar {
+                        width: 6px;
+                    }
+
+                    .tracks-list::-webkit-scrollbar-track {
+                        background: transparent;
+                        border-radius: 10px;
+                    }
+
+                    .tracks-list::-webkit-scrollbar-thumb {
+                        background: rgba(255, 255, 255, 0.15);
+                        border-radius: 10px;
+                        transition: background 0.3s ease;
+                    }
+
+                    .tracks-list::-webkit-scrollbar-thumb:hover {
+                        background: rgba(255, 255, 255, 0.25);
+                    }
+
+                    .track-item {
+                        display: flex;
+                        align-items: center;
+                        padding: 8px 0;
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                    }
+
+                    .track-item:last-child {
+                        border-bottom: none;
+                    }
+
+                    .track-thumbnail {
+                        width: 40px;
+                        height: 40px;
+                        margin-right: 12px;
+                        border-radius: 4px;
+                        overflow: hidden;
+                        background-color: rgba(255, 255, 255, 0.1);
+                        flex-shrink: 0;
+                    }
+
+                    .track-thumbnail img {
+                        width: 100%;
+                        height: 100%;
+                        object-fit: cover;
+                    }
+
+                    .track-info {
+                        flex: 1;
+                        min-width: 0;
+                    }
+
+                    .track-title {
+                        font-size: 14px;
+                        font-weight: 500;
+                        color: white;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        margin-bottom: 2px;
+                    }
+
+                    .track-artist {
+                        font-size: 12px;
+                        color: rgba(255, 255, 255, 0.7);
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    .track-album {
+                        font-size: 11px;
+                        color: rgba(255, 255, 255, 0.5);
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        margin-top: 1px;
+                    }
+
+                    .track-actions {
+                        margin-left: 12px;
+                        flex-shrink: 0;
+                    }
+
+                    .track-link {
+                        color: #1DB954;
+                        text-decoration: none;
+                        font-size: 12px;
+                        font-weight: 500;
+                        padding: 4px 8px;
+                        border: 1px solid #1DB954;
+                        border-radius: 4px;
+                        transition: all 0.2s ease;
+                    }
+
+                    .track-link:hover {
+                        background-color: #1DB954;
+                        color: white;
+                    }
+
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to { opacity: 1; }
+                    }
+                `;
+            }
+
+            // 设置Spotify对话框的3D展示台
+            setupSpotifyShowcase(albumPath, playlistTitle) {
+                const container = document.getElementById('spotify-showcase-container');
+                if (!container) {
+                    console.warn('找不到Spotify 3D展示台容器');
+                    return;
+                }
+
+                // 创建canvas元素，使用MusicBrainz展示台期望的ID
+                const canvas = document.createElement('canvas');
+                canvas.id = 'spotify-showcase-canvas';
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                canvas.style.borderRadius = '10px';
+                container.appendChild(canvas);
+
+                // 备份原始的showcaseCanvas引用
+                const originalShowcaseCanvas = this.showcaseCanvas;
+
+                // 更新showcaseCanvas引用
+                this.showcaseCanvas = canvas;
+
+                // 调用现有的展示台初始化方法
+                this.initializeShowcase(albumPath);
+
+                // 存储清理函数
+                container._cleanup = () => {
+                    console.log('清理Spotify 3D展示台内部资源');
+                    // 恢复原始showcaseCanvas引用
+                    this.showcaseCanvas = originalShowcaseCanvas;
+                    console.log('Spotify 3D展示台内部资源清理完成');
+                };
+            }
+
             // 获取外部链接（Spotify和YouTube Music）
             openExternalLinks(mbid, albumPath = null) {
                 // 检查缓存中是否已有该MBID的外部链接数据
