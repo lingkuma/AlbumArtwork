@@ -361,6 +361,60 @@
             margin-top: 5px;
         }
 
+        /* 可收缩展开的动画设置样式 */
+        .collapsible-section {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .collapsible-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 15px;
+            background: rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s ease;
+        }
+
+        .collapsible-header:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .collapsible-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .collapsible-arrow {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.3s ease;
+            fill: rgba(255, 255, 255, 0.6);
+        }
+
+        .collapsible-arrow.expanded {
+            transform: rotate(180deg);
+        }
+
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .collapsible-content.expanded {
+            max-height: 500px; /* 足够大的值来容纳所有内容 */
+        }
+
+        .collapsible-inner {
+            padding: 15px;
+        }
+
         /* iframe播放器样式 */
         .iframe-player {
             position: fixed;
@@ -580,42 +634,51 @@
                 </div>
                 <input type="range" class="settings-range" id="animation-interval-range" min="1000" max="10000" step="500" value="3000">
             </div>
-            <div class="settings-item">
-                <label class="settings-label" data-text="animationWeights">动画类型权重</label>
-                <div class="weight-container">
-                    <label data-text="flip">翻转:</label>
-                    <input type="range" class="weight-slider" id="flip-weight" min="0" max="100" value="15">
-                    <span class="settings-value" id="flip-weight-value">15</span>
+            <div class="collapsible-section">
+                <div class="collapsible-header" id="animation-weights-header">
+                    <span class="collapsible-title" data-text="animationWeights">动画类型权重</span>
+                    <svg class="collapsible-arrow" id="animation-weights-arrow" viewBox="0 0 16 16">
+                        <path d="M8 12L2 6h12l-6 6z"/>
+                    </svg>
                 </div>
-                <div class="weight-container">
-                    <label data-text="drop">掉落:</label>
-                    <input type="range" class="weight-slider" id="drop-weight" min="0" max="100" value="15">
-                    <span class="settings-value" id="drop-weight-value">15</span>
-                </div>
-                <div class="weight-container">
-                    <label data-text="linkedDrop">连锁掉落:</label>
-                    <input type="range" class="weight-slider" id="linked-drop-weight" min="0" max="100" value="15">
-                    <span class="settings-value" id="linked-drop-weight-value">15</span>
-                </div>
-                <div class="weight-container">
-                    <label data-text="rollDrop">滚动掉落:</label>
-                    <input type="range" class="weight-slider" id="roll-drop-weight" min="0" max="100" value="15">
-                    <span class="settings-value" id="roll-drop-weight-value">15</span>
-                </div>
-                <div class="weight-container">
-                    <label data-text="pinRotation">图钉旋转:</label>
-                    <input type="range" class="weight-slider" id="pin-rotation-weight" min="0" max="100" value="15">
-                    <span class="settings-value" id="pin-rotation-weight-value">15</span>
-                </div>
-                <div class="weight-container">
-                    <label data-text="rowRoll">行滚动:</label>
-                    <input type="range" class="weight-slider" id="row-roll-weight" min="0" max="100" value="12.5">
-                    <span class="settings-value" id="row-roll-weight-value">12.5</span>
-                </div>
-                <div class="weight-container">
-                    <label data-text="rowDrop">行掉落:</label>
-                    <input type="range" class="weight-slider" id="row-drop-weight" min="0" max="100" value="12.5">
-                    <span class="settings-value" id="row-drop-weight-value">12.5</span>
+                <div class="collapsible-content" id="animation-weights-content">
+                    <div class="collapsible-inner">
+                        <div class="weight-container">
+                            <label data-text="flip">翻转:</label>
+                            <input type="range" class="weight-slider" id="flip-weight" min="0" max="100" value="15">
+                            <span class="settings-value" id="flip-weight-value">15</span>
+                        </div>
+                        <div class="weight-container">
+                            <label data-text="drop">掉落:</label>
+                            <input type="range" class="weight-slider" id="drop-weight" min="0" max="100" value="15">
+                            <span class="settings-value" id="drop-weight-value">15</span>
+                        </div>
+                        <div class="weight-container">
+                            <label data-text="linkedDrop">连锁掉落:</label>
+                            <input type="range" class="weight-slider" id="linked-drop-weight" min="0" max="100" value="15">
+                            <span class="settings-value" id="linked-drop-weight-value">15</span>
+                        </div>
+                        <div class="weight-container">
+                            <label data-text="rollDrop">滚动掉落:</label>
+                            <input type="range" class="weight-slider" id="roll-drop-weight" min="0" max="100" value="15">
+                            <span class="settings-value" id="roll-drop-weight-value">15</span>
+                        </div>
+                        <div class="weight-container">
+                            <label data-text="pinRotation">图钉旋转:</label>
+                            <input type="range" class="weight-slider" id="pin-rotation-weight" min="0" max="100" value="15">
+                            <span class="settings-value" id="pin-rotation-weight-value">15</span>
+                        </div>
+                        <div class="weight-container">
+                            <label data-text="rowRoll">行滚动:</label>
+                            <input type="range" class="weight-slider" id="row-roll-weight" min="0" max="100" value="12.5">
+                            <span class="settings-value" id="row-roll-weight-value">12.5</span>
+                        </div>
+                        <div class="weight-container">
+                            <label data-text="rowDrop">行掉落:</label>
+                            <input type="range" class="weight-slider" id="row-drop-weight" min="0" max="100" value="12.5">
+                            <span class="settings-value" id="row-drop-weight-value">12.5</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -8218,6 +8281,9 @@
                 this.initWeightSlider('pin-rotation-weight', 'pinRotation');
                 this.initWeightSlider('row-roll-weight', 'rowRollDrop');
                 this.initWeightSlider('row-drop-weight', 'rowDrop');
+
+                // 初始化动画权重收缩展开功能
+                this.initCollapsibleSection('animation-weights');
                 
                 // 背景颜色设置
                 const backgroundColorPicker = document.getElementById('background-color');
@@ -8394,7 +8460,38 @@
                     this.saveSettings();
                 });
             }
-            
+
+            // 初始化可收缩展开区域
+            initCollapsibleSection(sectionId) {
+                const header = document.getElementById(`${sectionId}-header`);
+                const content = document.getElementById(`${sectionId}-content`);
+                const arrow = document.getElementById(`${sectionId}-arrow`);
+
+                if (!header || !content || !arrow) {
+                    console.warn(`收缩展开区域初始化失败: ${sectionId}`);
+                    return;
+                }
+
+                // 默认收缩状态
+                content.classList.remove('expanded');
+                arrow.classList.remove('expanded');
+
+                // 点击事件
+                header.addEventListener('click', () => {
+                    const isExpanded = content.classList.contains('expanded');
+
+                    if (isExpanded) {
+                        // 收缩
+                        content.classList.remove('expanded');
+                        arrow.classList.remove('expanded');
+                    } else {
+                        // 展开
+                        content.classList.add('expanded');
+                        arrow.classList.add('expanded');
+                    }
+                });
+            }
+
             // 添加重置按钮
             addResetButton() {
                 const resetContainer = document.getElementById('reset-container');
