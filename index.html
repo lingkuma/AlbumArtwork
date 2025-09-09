@@ -8969,20 +8969,58 @@
                 const albumPath = albumData.albumPath || `bg/${albumData.albumTitle}.jpg`;
                 
                 textureLoader.load(albumPath, (texture) => {
+                    // 调整纹理以确保正方形显示
+                    this.adjustTextureForIframeCover(texture);
+
                     // 创建圆形几何体而不是正方形，大小x2
                     const geometry = new THREE.CircleGeometry(1.0, 32); // 半径1.0（原来0.5的2倍），32个分段使圆形更光滑
                     const material = new THREE.MeshLambertMaterial({ map: texture });
-                    
+
                     this.iframeShowcaseCover = new THREE.Mesh(geometry, material);
                     this.iframeShowcaseScene.add(this.iframeShowcaseCover);
-                    
+
                     // 开始渲染循环
                     this.startIframeShowcaseAnimation();
                 }, undefined, (error) => {
                     console.warn('加载iframe封面失败:', error);
                 });
             }
-            
+
+            // 调整iframe封面纹理以确保正方形显示
+            adjustTextureForIframeCover(texture) {
+                const image = texture.image;
+                if (!image || !image.width || !image.height) {
+                    return;
+                }
+
+                const imageAspect = image.width / image.height;
+
+                if (imageAspect !== 1) { // 不是正方形
+                    // 计算裁切参数以实现居中裁切（与原有方法保持一致）
+                    if (imageAspect > 1) {
+                        // 宽图：裁切左右两边
+                        const cropWidth = image.height; // 使用高度作为裁切宽度
+                        const offsetX = (image.width - cropWidth) / 2 / image.width;
+
+                        texture.offset.x = offsetX;
+                        texture.repeat.x = cropWidth / image.width;
+                        texture.offset.y = 0;
+                        texture.repeat.y = 1;
+                    } else {
+                        // 高图：裁切上下两边
+                        const cropHeight = image.width; // 使用宽度作为裁切高度
+                        const offsetY = (image.height - cropHeight) / 2 / image.height;
+
+                        texture.offset.x = 0;
+                        texture.repeat.x = 1;
+                        texture.offset.y = offsetY;
+                        texture.repeat.y = cropHeight / image.height;
+                    }
+
+                    texture.needsUpdate = true;
+                }
+            }
+
             // 开始iframe展示台动画
             startIframeShowcaseAnimation() {
                 if (this.iframeShowcaseAnimationId) {
