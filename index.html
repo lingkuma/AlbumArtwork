@@ -474,6 +474,7 @@
             flex-direction: column;
             justify-content: center;
             margin-right: 15px;
+            min-width: 0; /* 确保flex子项可以正确收缩 */
         }
 
         .iframe-title {
@@ -484,6 +485,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            max-width: 100%; /* 确保不超出父容器宽度 */
         }
 
         .iframe-service {
