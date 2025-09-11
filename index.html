@@ -1180,6 +1180,36 @@
                 this.油管芝麻糊 = 丙左 + 丙右; // 请替换为你的YouTube Data API密钥
                 this.youtubePlaylistCache = new Map(); // YouTube歌单缓存
 
+                // 搜索引擎配置
+                this.searchEngines = [
+                    {
+                        key: 'wjhe',
+                        name: 'WJHE',
+                        domain: 'y.wjhe.top',
+                        baseUrl: 'https://y.wjhe.top/#/search',
+                        urlTemplate: 'https://y.wjhe.top/#/search?keyword={keyword}&type=album',
+                        maxLength: 100, // 关键词最大长度
+                        keywordProcessor: this.processSearchKeyword.bind(this),
+                        linkClass: 'search-engine-link',
+                        iconClass: 'search-engine-icon', 
+                        iconUrl: null, // 使用域名文字显示
+                        iconImgClass: 'search-engine-icon-text'
+                    },
+                    {
+                        key: 'gdstudio',
+                        name: 'GD Studio',
+                        domain: 'music.gdstudio.xyz',
+                        baseUrl: 'https://music.gdstudio.xyz',
+                        urlTemplate: 'https://music.gdstudio.xyz', // 无参数直接跳转
+                        maxLength: 0, // 无关键词处理
+                        keywordProcessor: this.processNoKeyword.bind(this),
+                        linkClass: 'search-engine-link',
+                        iconClass: 'search-engine-icon', 
+                        iconUrl: null, // 使用域名文字显示
+                        iconImgClass: 'search-engine-icon-text'
+                    }
+                ];
+
                 // Three.js 相关
                 this.scene = null;
                 this.camera = null;
@@ -6948,6 +6978,9 @@
                             }
                         }
                         
+                        // 生成搜索引擎链接
+                        const searchUrls = this.generateSearchUrls(albumTitle, artistName);
+                        
                         // 缓存结果
                         const linkData = { 
                             albumTitle,
@@ -6962,7 +6995,8 @@
                             deezerUrl,
                             tidalUrl,
                             netease163Url,
-                            otherLinks
+                            otherLinks,
+                            searchUrls // 添加搜索引擎链接
                         };
                         this.externalLinksCache.set(mbid, linkData);
                         
@@ -6996,9 +7030,75 @@
                 }
             }
             
+            // 通用搜索关键词处理
+            processSearchKeyword(albumTitle, artistName) {
+                // 组合专辑名和歌手名
+                let keyword = '';
+                if (albumTitle && artistName) {
+                    keyword = `${albumTitle} ${artistName}`;
+                } else if (albumTitle) {
+                    keyword = albumTitle;
+                } else if (artistName) {
+                    keyword = artistName;
+                } else {
+                    return '';
+                }
+                
+                // 将空格替换为加号
+                keyword = keyword.replace(/\s+/g, '+');
+                
+                // 移除特殊字符，保留中文、英文、数字和加号
+                keyword = keyword.replace(/[^\u4e00-\u9fff\w+]/g, '');
+                
+                // 限制长度为100个字符
+                if (keyword.length > 100) {
+                    keyword = keyword.substring(0, 100);
+                }
+                
+                return keyword;
+            }
+            
+            // 无关键词处理（直接返回基础URL）
+            processNoKeyword(albumTitle, artistName) {
+                return ''; // 返回空字符串，使用基础URL
+            }
+            
+            // 通用搜索URL生成器
+            generateSearchUrls(albumTitle, artistName) {
+                const searchUrls = [];
+                
+                for (const engine of this.searchEngines) {
+                    try {
+                        const keyword = engine.keywordProcessor(albumTitle, artistName);
+                        let url;
+                        
+                        if (keyword) {
+                            // 有关键词的情况
+                            url = engine.urlTemplate.replace('{keyword}', encodeURIComponent(keyword));
+                        } else if (engine.maxLength === 0) {
+                            // 无关键词处理的情况，直接使用基础URL
+                            url = engine.baseUrl;
+                        } else {
+                            // 关键词为空，跳过此搜索引擎
+                            continue;
+                        }
+                        
+                        searchUrls.push({
+                            ...engine,
+                            url: url,
+                            keyword: keyword || ''
+                        });
+                    } catch (error) {
+                        console.warn(`生成搜索URL失败 (${engine.name}):`, error);
+                    }
+                }
+                
+                return searchUrls;
+            }
+            
             // 显示链接对话框
             showLinksDialog(linkData) {
-                const { albumTitle, artistName, musicBrainzUrl, listenBrainzUrl, spotifyUrl, youtubeMusicUrl, appleMusicUrl, itunesUrl, deezerUrl, tidalUrl, netease163Url, otherLinks } = linkData;
+                const { albumTitle, artistName, musicBrainzUrl, listenBrainzUrl, spotifyUrl, youtubeMusicUrl, appleMusicUrl, itunesUrl, deezerUrl, tidalUrl, netease163Url, otherLinks, searchUrls } = linkData;
                 
                 // 移除可能已存在的对话框
                 const existingDialog = document.getElementById('links-dialog');
@@ -7040,7 +7140,7 @@
                     if (musicBrainzUrl) {
                         dialogContent += `
                             <li class="column-item icon-link">
-                                <a href="#" class="link-url" data-url="${musicBrainzUrl}">
+                                <a href="${musicBrainzUrl}" class="link-url" data-url="${musicBrainzUrl}" onclick="event.preventDefault(); window.screensaver.handleLinkClick('${musicBrainzUrl}', 'MusicBrainz', {albumPath: '${linkData.albumPath}', albumTitle: '${albumTitle}'})">
                                     <img src="https://static.metabrainz.org/MB/header-logo-1f7dc2a.svg" alt="MusicBrainz" class="link-icon" />
                                 </a>
                             </li>
@@ -7050,7 +7150,7 @@
                     if (listenBrainzUrl) {
                         dialogContent += `
                             <li class="column-item icon-link">
-                                <a href="#" class="link-url" data-url="${listenBrainzUrl}">
+                                <a href="${listenBrainzUrl}" class="link-url" data-url="${listenBrainzUrl}" onclick="event.preventDefault(); window.screensaver.handleLinkClick('${listenBrainzUrl}', 'ListenBrainz', {albumPath: '${linkData.albumPath}', albumTitle: '${albumTitle}'})">
                                     <img src="https://listenbrainz.org/static/img/listenbrainz-logo.svg" alt="ListenBrainz" class="link-icon" />
                                 </a>
                             </li>
@@ -7080,12 +7180,38 @@
                     if (url) {
                         dialogContent += `
                             <li class="${platform.linkClass}">
-                                <a href="#" class="link-url ${platform.iconClass}" data-url="${url}">
+                                <a href="${url}" class="link-url ${platform.iconClass}" data-url="${url}" onclick="event.preventDefault(); window.screensaver.handleLinkClick('${url}', '${platform.name}', {albumPath: '${linkData.albumPath}', albumTitle: '${albumTitle}'})">
                                     <img src="${platform.iconUrl}" alt="${platform.name}" class="link-icon ${platform.iconImgClass}" />
                                 </a>
                             </li>
                         `;
                     }
+                }
+                
+                // 添加搜索引擎链接 - Other收缩菜单
+                if (searchUrls && searchUrls.length > 0) {
+                    dialogContent += `
+                        <li class="other-search-container">
+                            <div class="other-search-header" onclick="window.screensaver.toggleOtherSearch(this)">
+                                <span class="other-search-title">Other</span>
+                            </div>
+                            <div class="other-search-content" style="display: none;">
+                    `;
+                    
+                    for (const searchEngine of searchUrls) {
+                        dialogContent += `
+                            <div class="other-search-item">
+                                <a href="${searchEngine.url}" class="other-search-link" data-url="${searchEngine.url}" onclick="event.preventDefault(); window.screensaver.handleLinkClick('${searchEngine.url}', '${searchEngine.name}', {albumPath: '${linkData.albumPath}', albumTitle: '${albumTitle}'})">
+                                    <span class="other-search-domain">${searchEngine.domain}</span>
+                                </a>
+                            </div>
+                        `;
+                    }
+                    
+                    dialogContent += `
+                            </div>
+                        </li>
+                    `;
                 }
                 
                 // 添加其他链接
@@ -7094,16 +7220,19 @@
                         dialogContent += `
                             <li>
                                 <span class="link-service">${link.name}</span>
-                                <a href="#" class="link-url" data-url="${link.url}">
+                                <a href="#" class="link-url" data-url="${link.url}" 
+                                onclick="event.preventDefault(); window.screensaver.handleLinkClick('${link.url}', '${link.name}', {albumPath: '', albumTitle: ''})" 
+                                onauxclick="event.preventDefault(); window.screensaver.handleLinkClick('${link.url}', '${link.name}', {albumPath: '', albumTitle: ''})">
                                     ${link.url}
                                 </a>
                             </li>
                         `;
                     }
                 }
+
                 
                 // 如果没有找到任何链接
-                if (!musicBrainzUrl && !listenBrainzUrl && !spotifyUrl && !youtubeMusicUrl && !appleMusicUrl && !itunesUrl && !deezerUrl && !tidalUrl && !netease163Url && (!otherLinks || otherLinks.length === 0)) {
+                if (!musicBrainzUrl && !listenBrainzUrl && !spotifyUrl && !youtubeMusicUrl && !appleMusicUrl && !itunesUrl && !deezerUrl && !tidalUrl && !netease163Url && (!otherLinks || otherLinks.length === 0) && (!searchUrls || searchUrls.length === 0)) {
                     dialogContent += `
                         <li class="no-links">
                             ${this.texts.noLinksFound}
@@ -7962,6 +8091,93 @@
                             transform: translate(-50%, -50%);
                         }
                     }
+                    
+                    /* Other搜索菜单样式 */
+                    .other-search-container {
+                        position: relative;
+                        border-radius: 12px;
+                        background-color: rgba(255, 255, 255, 0.05);
+                        overflow: hidden;
+                        transition: all 0.3s ease;
+                    }
+                    
+                    .other-search-header {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 15px;
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        position: relative;
+                    }
+                    
+                    
+                    .other-search-title {
+                        font-weight: 600;
+                        color: rgba(255, 255, 255, 0.9);
+                        font-size: 16px;
+                    }
+                    
+
+                    .other-search-content {
+                        border-top: 1px solid rgba(255, 255, 255, 0.1);
+                        animation: slideDown 0.3s ease;
+                    }
+                    
+                    @keyframes slideDown {
+                        from {
+                            opacity: 0;
+                            max-height: 0;
+                        }
+                        to {
+                            opacity: 1;
+                            max-height: 200px;
+                        }
+                    }
+                    
+                    .other-search-item {
+                        padding: 12px 20px;
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                        transition: all 0.2s ease;
+                    }
+                    
+                    .other-search-item:last-child {
+                        border-bottom: none;
+                    }
+                    
+                    .other-search-item:hover {
+                        background-color: rgba(255, 255, 255, 0.08);
+                        transform: translateX(5px);
+                        border-radius: 8px;
+                    }
+                    
+                    .other-search-link {
+                        display: block;
+                        color: #64b5f6;
+                        text-decoration: none;
+                        transition: all 0.2s ease;
+                    }
+                    
+                    .other-search-link:hover {
+                        color: #90caf9;
+                    }
+                    
+                    .other-search-domain {
+                        font-size: 14px;
+                        font-weight: 500;
+                        animation: domainPulse 3.0s ease-in-out infinite;
+                    }
+                    
+                    @keyframes domainPulse {
+                        0%, 100% {
+                            opacity: 0.8;
+                            text-shadow: 0 0 5px rgba(64, 181, 246, 0.3);
+                        }
+                        50% {
+                            opacity: 1;
+                            text-shadow: 0 0 10px rgba(64, 181, 246, 0.5);
+                        }
+                    }
                 `;
                 
                 // 创建背景遮罩
@@ -7995,61 +8211,7 @@
                     style.remove();
                 });
                 
-                // 为整个列表项添加点击事件
-                const listItems = dialog.querySelectorAll('.links-list li');
-                listItems.forEach(item => {
-                    // 跳过没有链接的项目（如"没有找到链接"的提示）
-                    if (item.classList.contains('no-links')) return;
-                    
-                    const link = item.querySelector('.link-url');
-                    const url = link ? link.getAttribute('data-url') : null;
-                    
-                    // 获取服务名称
-                    let serviceName;
-                    const serviceSpan = item.querySelector('.link-service');
-                    if (serviceSpan) {
-                        serviceName = serviceSpan.textContent;
-                    } else {
-                        // 对于图标链接，根据URL判断服务名称
-                        if (url && url.includes('musicbrainz.org')) {
-                            serviceName = 'MusicBrainz';
-                        } else if (url && url.includes('listenbrainz.org')) {
-                            serviceName = 'ListenBrainz';
-                        } else {
-                            serviceName = 'Unknown Service';
-                        }
-                    }
-                    
-                    // 添加点击效果
-                    item.addEventListener('mousedown', () => {
-                        item.style.transform = 'translateY(0)';
-                        item.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.1)';
-                    });
-                    
-                    item.addEventListener('mouseup', () => {
-                        item.style.transform = '';
-                        item.style.boxShadow = '';
-                    });
-                    
-                    // 点击整个列表项
-                    item.addEventListener('click', () => {
-                        if (url) {
-                            this.handleLinkClick(url, serviceName, linkData);
-                        }
-                    });
-                    
-                    // 保留链接的点击事件，但阻止冒泡以避免触发两次
-                    if (link) {
-                        link.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            e.stopPropagation(); // 阻止冒泡到列表项
-                            
-                            if (url) {
-                                this.handleLinkClick(url, serviceName, linkData);
-                            }
-                        });
-                    }
-                });
+                // 链接点击现在通过onclick直接处理，无需额外的事件绑定
                 
                 // 显示状态消息
                 this.showStatusMessage(this.texts.externalLinksReady);
@@ -8684,6 +8846,22 @@
                 setTimeout(() => {
                     window.location.reload();
                 }, 3000);
+            }
+            
+            // 切换Other搜索菜单
+            toggleOtherSearch(header) {
+                const container = header.parentElement;
+                const content = container.querySelector('.other-search-content');
+                
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+
+                    container.classList.add('expanded');
+                } else {
+                    content.style.display = 'none';
+ 
+                    container.classList.remove('expanded');
+                }
             }
             
             // 更新权重滑块值
@@ -9432,7 +9610,12 @@
                     'music.amazon.com'
                 ];
                 
-                return musicServices.some(service => url.includes(service));
+                // 检查是否为配置的搜索引擎
+                const isSearchEngine = this.searchEngines.some(engine => 
+                    url.includes(new URL(engine.baseUrl).hostname)
+                );
+                
+                return musicServices.some(service => url.includes(service)) || isSearchEngine;
             }
 
             // 转换URL为iframe兼容的embed格式
