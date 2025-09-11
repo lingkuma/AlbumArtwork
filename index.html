@@ -7119,8 +7119,8 @@
                     <div class="dialog-header">
                         <div class="album-info-container">
                             <main class="album-main">
-                                <h1 class="album-title">${albumTitle}</h1>
-                                ${artistName ? `<h2 class="artist-name">${artistName}</h2>` : ''}
+                                <h1 class="album-title clickable-title" onclick="window.screensaver.copyAlbumInfo('${albumTitle.replace(/'/g, "\\'")}', '${artistName ? artistName.replace(/'/g, "\\'") : ''}')" title="点击复制">${albumTitle}</h1>
+                                ${artistName ? `<h2 class="artist-name clickable-artist" onclick="window.screensaver.copyAlbumInfo('${albumTitle.replace(/'/g, "\\'")}', '${artistName.replace(/'/g, "\\'")}'))" title="点击复制">${artistName}</h2>` : ''}
                                 <aside class="water"></aside>
                             </main>
                         </div>
@@ -7330,6 +7330,10 @@
                         z-index: 3;
                     }
                     
+                    .clickable-title {
+                        cursor: pointer;
+                    }
+                    
                     .artist-name {
                         font-size: clamp(1rem, 1.5vw + 0.8rem, 1rem);
                         font-weight: normal;
@@ -7343,6 +7347,10 @@
                         line-height: 1.3;
                         position: relative;
                         z-index: 4;
+                    }
+                    
+                    .clickable-artist {
+                        cursor: pointer;
                     }
                     
           
@@ -8215,6 +8223,55 @@
                 
                 // 显示状态消息
                 this.showStatusMessage(this.texts.externalLinksReady);
+            }
+            
+            // 复制专辑信息到剪切板
+            copyAlbumInfo(albumTitle, artistName) {
+                // 格式化要复制的文本：专辑名称 空格 作者
+                let textToCopy;
+                if (artistName && artistName.trim() !== '') {
+                    textToCopy = `${albumTitle} ${artistName}`;
+                } else {
+                    textToCopy = albumTitle;
+                }
+                
+                // 使用现代剪贴板API
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(textToCopy)
+                        .then(() => {
+                            // 显示复制成功消息
+                            this.showStatusMessage(`已复制: ${textToCopy}`);
+                        })
+                        .catch(err => {
+                            console.error('无法复制到剪贴板:', err);
+                            // 回退到传统方法
+                            this.fallbackCopyAlbumInfo(textToCopy);
+                        });
+                } else {
+                    // 回退到传统方法
+                    this.fallbackCopyAlbumInfo(textToCopy);
+                }
+            }
+            
+            // 备用复制方法
+            fallbackCopyAlbumInfo(text) {
+                // 创建一个临时输入框来复制文本
+                const tempInput = document.createElement('input');
+                tempInput.style.position = 'absolute';
+                tempInput.style.left = '-1000px';
+                tempInput.style.top = '-1000px';
+                tempInput.value = text;
+                document.body.appendChild(tempInput);
+                
+                // 选择并复制
+                tempInput.select();
+                document.execCommand('copy');
+                
+                // 移除临时元素
+                document.body.removeChild(tempInput);
+                
+                // 显示复制成功消息
+                this.showStatusMessage(`已复制: ${text}`);
             }
             
             copyToClipboard(text) {
